@@ -324,15 +324,6 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
               />
             </div>
           </div>
-              <span className="text-xs text-[#a78b7d]">/ 280g</span>
-            </div>
-            <div className="w-full h-1.5 rounded-full bg-[#353437] mt-2 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-[#f97316] shadow-[0_0_12px_rgba(249,115,22,0.8)]"
-                style={{ width: '75%' }}
-              />
-            </div>
-          </div>
 
           {/* Fat */}
           <div className="flex flex-col p-3 rounded-xl bg-[#0e0e10]/80 border border-[#201f22]">

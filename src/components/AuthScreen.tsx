@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface AuthScreenProps {
   onBypassDemo?: () => void;
@@ -14,18 +15,58 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassDemo }) => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isEmailUnconfirmed, setIsEmailUnconfirmed] = useState<boolean>(false);
+  const [isResending, setIsResending] = useState<boolean>(false);
+
+  const handleResendConfirmation = async () => {
+    if (!email) {
+      setErrorMessage('Please enter your email above first.');
+      return;
+    }
+    setIsResending(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+      if (error) {
+        setErrorMessage(error.message);
+      } else {
+        setSuccessMessage(`Confirmation link sent to ${email}. Please check your inbox and spam folder.`);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to resend confirmation link.');
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    setIsEmailUnconfirmed(false);
     setLoading(true);
 
     try {
       if (mode === 'signin') {
         const { error } = await signInWithEmail(email, password);
         if (error) {
-          setErrorMessage(error.message);
+          if (
+            error.message.toLowerCase().includes('email not confirmed') ||
+            (error as any).code === 'email_not_confirmed'
+          ) {
+            setIsEmailUnconfirmed(true);
+            setErrorMessage('Your account was created, but email confirmation is required by your Supabase project settings.');
+          } else if (error.message.toLowerCase().includes('invalid login credentials')) {
+            setErrorMessage(
+              'Invalid credentials. If you haven’t created an account in this new database yet, switch to the REGISTER tab to create one.'
+            );
+          } else {
+            setErrorMessage(error.message);
+          }
         }
       } else {
         if (!name.trim()) {
@@ -37,7 +78,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassDemo }) => {
         if (error) {
           setErrorMessage(error.message);
         } else {
-          setSuccessMessage('Account registered! If confirmation email is enabled, please verify your inbox.');
+          setSuccessMessage(
+            'Account registered! If confirmation is enabled, check your email inbox to verify.'
+          );
         }
       }
     } catch (err: any) {
@@ -131,6 +174,35 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassDemo }) => {
           <div className="p-3 bg-red-950/40 border border-red-500/40 rounded-xl text-xs text-red-200 flex items-start gap-2">
             <span className="material-symbols-outlined text-[16px] text-red-400 mt-0.5">error</span>
             <span>{errorMessage}</span>
+          </div>
+        )}
+        {isEmailUnconfirmed && (
+          <div className="p-3.5 bg-[#251810] border border-[#f97316]/60 rounded-xl space-y-2.5 text-xs text-[#ffdbca]">
+            <div className="flex items-center gap-1.5 font-bold font-['Space_Grotesk'] text-[#f97316]">
+              <span className="material-symbols-outlined text-[16px]">mail</span>
+              <span>Verification Required</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-[#e0c0b1]/80">
+              Check your inbox for a confirmation link, or resend it below:
+            </p>
+            <button
+              type="button"
+              onClick={handleResendConfirmation}
+              disabled={isResending}
+              className="w-full py-2 bg-[#f97316]/20 hover:bg-[#f97316]/30 text-[#f97316] font-['Space_Grotesk'] text-xs font-bold rounded-lg border border-[#f97316]/40 cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
+            >
+              {isResending ? (
+                <span className="w-3.5 h-3.5 border-2 border-[#f97316] border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[14px]">send</span>
+                  <span>Resend Confirmation Email</span>
+                </>
+              )}
+            </button>
+            <div className="text-[10px] text-[#a78b7d] border-t border-[#353437] pt-2">
+              💡 <strong>Instant Dev Fix:</strong> In Supabase Dashboard &rarr; <em>Authentication &rarr; Providers &rarr; Email</em> &rarr; Turn OFF <strong>&quot;Confirm email&quot;</strong> &rarr; Save.
+            </div>
           </div>
         )}
         {successMessage && (

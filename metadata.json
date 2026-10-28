@@ -1,0 +1,6 @@
+{
+  "name": "Kinetic Obsidian - LiftIQ",
+  "description": "AI-powered biometric strength, nutrition, and velocity tracking engineered with obsidian precision.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

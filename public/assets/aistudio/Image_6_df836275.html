@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "surface-container-lowest": "#0e0e10", "on-primary-fixed": "#341100", "secondary-fixed": "#acf847", "primary-container": "#f97316", "surface-bright": "#39393b", "secondary-container": "#7ac100", "surface-container-high": "#2a2a2c", "on-primary": "#552100", "surface-container-low": "#1c1b1d", "surface": "#131315", "on-primary-container": "#582200", "outline-variant": "#584237", "tertiary-fixed-dim": "#4cd7f6", "error-container": "#93000a", "primary": "#ffb690", "error": "#ffb4ab", "tertiary-container": "#00a9c5", "primary-fixed": "#ffdbca", "on-error-container": "#ffdad6", "surface-container-highest": "#353437", "on-tertiary-container": "#003842", "outline": "#a78b7d", "primary-fixed-dim": "#ffb690", "background": "#131315", "tertiary-fixed": "#acedff", "on-tertiary": "#003640", "tertiary": "#4cd7f6", "on-surface": "#e5e1e4", "on-error": "#690005", "surface-container": "#201f22", "on-tertiary-fixed": "#001f26", "inverse-primary": "#9d4300", "on-background": "#e5e1e4", "on-primary-fixed-variant": "#783200", "on-secondary-fixed-variant": "#304f00", "on-surface-variant": "#e0c0b1", "on-secondary-fixed": "#102000", "surface-tint": "#ffb690", "inverse-surface": "#e5e1e4", "inverse-on-surface": "#313032", "secondary-fixed-dim": "#91db2a", "surface-variant": "#353437", "on-secondary": "#1f3700", "on-secondary-container": "#2c4900", "secondary": "#94de2d", "on-tertiary-fixed-variant": "#004e5c", "surface-dim": "#131315" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "margin": "1rem", "gutter-sm": "0.75rem", "space-2xs": "0.125rem", "space-xs": "0.25rem", "margin-desktop": "2rem", "space-3xl": "3rem", "space-base": "1rem", "gutter": "1rem", "space-md": "0.75rem", "space-2xl": "2rem", "space-xl": "1.5rem", "margin-tablet": "1.5rem", "space-lg": "1.25rem", "space-sm": "0.5rem" }, fontFamily: { "headline-md": ["Space Grotesk"], "label-md": ["Space Grotesk"], "headline-lg": ["Space Grotesk"], "label-sm": ["Space Grotesk"], "headline-xl-mobile": ["Space Grotesk"], "body-md": ["Plus Jakarta Sans"], "body-lg": ["Plus Jakarta Sans"], "metric-display-mobile": ["Space Grotesk"], "metric-display": ["Space Grotesk"], "headline-xl": ["Space Grotesk"], "body-sm": ["Plus Jakarta Sans"] }, fontSize: { "headline-md": ["22px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600" }], "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.06em", fontWeight: "600" }], "headline-lg": ["28px", { lineHeight: "36px", letterSpacing: "-0.02em", fontWeight: "600" }], "label-sm": ["10px", { lineHeight: "14px", letterSpacing: "0.08em", fontWeight: "700" }], "headline-xl-mobile": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700" }], "body-md": ["14px", { lineHeight: "20px", letterSpacing: "0em", fontWeight: "400" }], "body-lg": ["16px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "500" }], "metric-display-mobile": ["38px", { lineHeight: "42px", letterSpacing: "-0.03em", fontWeight: "700" }], "metric-display": ["48px", { lineHeight: "52px", letterSpacing: "-0.04em", fontWeight: "700" }], "headline-xl": ["40px", { lineHeight: "48px", letterSpacing: "-0.03em", fontWeight: "700" }], "body-sm": ["12px", { lineHeight: "16px", letterSpacing: "0.01em", fontWeight: "400" }] } } } }</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;background-color:#131315;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-background font-body-md text-body-md text-on-surface flex flex-col min-h-screen selection:bg-primary-container selection:text-surface"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><img alt="Kinetic Obsidian Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9mAGSXM6XxcStCr8x2sOQ9sOGwOvw4TT1OX6Oh-wCWBeK9AER2vpHh-pIWRez-enIb3WHF0KR_X8oOHc2GTzKNh6qYYAnOrLAlaTSXiRUOG9qOOk7M_mvWMBD0GaMfkRQoBpHM73foungg5SDFcS97JMjLzZxihTXwNUX31Ka1v1xBQ9giQTR3f-YbkevrFvWC4eQSly7YJFeIZPBJAK_MLwg6b24FjFmgWN--FENq97tOQK6rN-B"/><span class="font-headline-md text-headline-md tracking-tight text-on-surface uppercase">Today</span></div><div class="flex items-center gap-space-sm"><div class="flex items-center gap-space-2xs bg-surface-container-high/80 px-space-sm py-space-2xs rounded-full shadow-[0_0_12px_rgba(249,115,22,0.25)]"><span class="material-symbols-outlined text-primary-container text-body-lg">local_fire_department</span><span class="font-label-sm text-label-sm text-primary-container">14D</span></div><button class="flex items-center justify-center p-space-2xs min-w-[44px] min-h-[44px]"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbd0KDP_KEJI9bh4vtwgom7cUjQt6jNzoLGjkv6UPkH6d2nEv8VdLrkXCWLFpf2T39DdctzEVMmQr18UrsJVTSc0csI3MY7_9jV_8W2iO1uCapEXe6Zgrl8bkvEJPvVZBOwYo3IM2AP2sC-ylfc8sEvPeWOViiumgHMkJIdLDx9VByMLAledy8c2LvrShjPQh1HbEOjw5d87Pf9sEGGs_rTKyZ9G-BfHDDwm01QPFidQLJJDXzOBgw"/></button></div></div></header><main class="flex flex-col relative w-full pt-16 pb-24 bg-surface min-h-screen"><div class="flex flex-col w-full px-margin space-y-space-lg pb-space-2xl">
+<!-- Greeting & Readiness Banner -->
+<div class="relative overflow-hidden rounded-xl bg-surface-container-low p-space-base shadow-lg">
+<div class="absolute -right-8 -top-8 w-36 h-36 bg-primary-container/10 rounded-full blur-2xl pointer-events-none"></div>
+<div class="flex flex-col space-y-space-sm relative z-10">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Kinetic Sync • 18:42 PM</span>
+<div class="flex items-center gap-space-xs bg-secondary-container/20 px-space-sm py-0.5 rounded-full shadow-[0_0_12px_rgba(148,222,45,0.2)]">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+<span class="font-label-sm text-label-sm text-secondary font-bold">94% OPTIMAL READINESS</span>
+</div>
+</div>
+<div class="flex items-end justify-between">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Good evening, Alex</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Prime neuromuscular recovery window unlocked.</p>
+</div>
+<div class="flex items-center gap-space-2xs bg-surface-container-high px-space-sm py-space-xs rounded-full">
+<span class="material-symbols-outlined text-primary-container text-body-md" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+<span class="font-label-md text-label-md text-primary-container">14D STREAK</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Radial Activity Rings HUD -->
+<div class="relative rounded-xl bg-surface-container-low p-space-base shadow-xl overflow-hidden">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary-container text-body-lg">donut_large</span>
+<span class="font-headline-md text-headline-md text-on-surface">Daily Velocity</span>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary bg-surface-container-highest px-space-sm py-0.5 rounded-full">LIVE BIO-FEED</span>
+</div>
+<div class="flex flex-col items-center justify-center my-space-xs relative">
+<div class="relative w-56 h-56 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 100 100">
+<!-- Background tracks -->
+<circle class="text-surface-container-highest" cx="50" cy="50" fill="none" opacity="0.3" r="42" stroke="currentColor" stroke-width="6"></circle>
+<circle class="text-surface-container-highest" cx="50" cy="50" fill="none" opacity="0.3" r="34" stroke="currentColor" stroke-width="6"></circle>
+<circle class="text-surface-container-highest" cx="50" cy="50" fill="none" opacity="0.3" r="26" stroke="currentColor" stroke-width="6"></circle>
+<!-- Outer Ring: Workout Load (75%) - Electric Orange -->
+<circle class="text-primary-container" cx="50" cy="50" fill="none" r="42" stroke="currentColor" stroke-dasharray="263.89" stroke-dashoffset="65.97" stroke-linecap="round" stroke-width="6" style="filter: drop-shadow(0 0 6px rgba(249,115,22,0.6));"></circle>
+<!-- Mid Ring: Tonnage Volume (90%) - Electric Lime -->
+<circle class="text-secondary" cx="50" cy="50" fill="none" r="34" stroke="currentColor" stroke-dasharray="213.63" stroke-dashoffset="21.36" stroke-linecap="round" stroke-width="6" style="filter: drop-shadow(0 0 6px rgba(148,222,45,0.6));"></circle>
+<!-- Inner Ring: Macro Fuel (82%) - Kinetic Cyan -->
+<circle class="text-tertiary" cx="50" cy="50" fill="none" r="26" stroke="currentColor" stroke-dasharray="163.36" stroke-dashoffset="29.40" stroke-linecap="round" stroke-width="6" style="filter: drop-shadow(0 0 6px rgba(76,215,246,0.6));"></circle>
+</svg>
+<!-- Center Readout -->
+<div class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-widest">Active Output</span>
+<span class="font-metric-display-mobile text-metric-display-mobile text-on-surface font-headline-md tracking-tight leading-none mt-space-2xs">2,420</span>
+<span class="font-label-sm text-label-sm text-primary-container font-semibold mt-space-2xs">KCAL BURNED</span>
+</div>
+</div>
+<!-- Ring Legend -->
+<div class="grid grid-cols-3 w-full gap-space-xs mt-space-md pt-space-sm bg-surface-container-lowest/60 rounded-lg p-space-sm">
+<div class="flex flex-col items-center text-center">
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-primary-container shadow-[0_0_6px_rgba(249,115,22,0.8)]"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Session</span>
+</div>
+<span class="font-headline-md text-headline-md text-on-surface mt-space-2xs">75%</span>
+</div>
+<div class="flex flex-col items-center text-center">
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_6px_rgba(148,222,45,0.8)]"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Tonnage</span>
+</div>
+<span class="font-headline-md text-headline-md text-secondary mt-space-2xs">90%</span>
+</div>
+<div class="flex flex-col items-center text-center">
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-tertiary shadow-[0_0_6px_rgba(76,215,246,0.8)]"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Fueling</span>
+</div>
+<span class="font-headline-md text-headline-md text-tertiary mt-space-2xs">82%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Metric Quick Tiles (2x2 Grid) -->
+<div class="grid grid-cols-2 gap-space-sm">
+<div class="bg-surface-container-low p-space-sm rounded-xl flex flex-col justify-between shadow-md">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Total Volume</span>
+<span class="material-symbols-outlined text-secondary text-body-md">fitness_center</span>
+</div>
+<div class="mt-space-sm">
+<div class="font-metric-display-mobile text-metric-display-mobile text-on-surface tracking-tight leading-none">14.2k</div>
+<span class="font-label-sm text-label-sm text-secondary font-bold">KG ACCUMULATED</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded-xl flex flex-col justify-between shadow-md">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Session Time</span>
+<span class="material-symbols-outlined text-primary-container text-body-md">timer</span>
+</div>
+<div class="mt-space-sm">
+<div class="font-metric-display-mobile text-metric-display-mobile text-on-surface tracking-tight leading-none">48<span class="text-headline-md text-on-surface-variant ml-1 font-headline-md">m</span></div>
+<span class="font-label-sm text-label-sm text-primary-container font-bold">+6m UNDER TARGET</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded-xl flex flex-col justify-between shadow-md">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Avg Heart Rate</span>
+<span class="material-symbols-outlined text-error text-body-md animate-pulse">favorite</span>
+</div>
+<div class="mt-space-sm">
+<div class="font-metric-display-mobile text-metric-display-mobile text-on-surface tracking-tight leading-none">142</div>
+<span class="font-label-sm text-label-sm text-tertiary font-bold">BPM (ZONE 3.8)</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded-xl flex flex-col justify-between shadow-md">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Sets Complete</span>
+<span class="material-symbols-outlined text-secondary text-body-md">checklist</span>
+</div>
+<div class="mt-space-sm">
+<div class="font-metric-display-mobile text-metric-display-mobile text-on-surface tracking-tight leading-none">16<span class="text-headline-md text-outline ml-1 font-headline-md">/20</span></div>
+<span class="font-label-sm text-label-sm text-secondary font-bold">4 FINISHER SETS REMAIN</span>
+</div>
+</div>
+</div>
+<!-- Horizontal Snap Carousel: Today's Plan -->
+<div class="flex flex-col space-y-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary-container text-body-lg">calendar_today</span>
+<span class="font-headline-md text-headline-md text-on-surface">Target Protocol</span>
+</div>
+<span class="font-label-sm text-label-sm text-outline">SWIPE QUEUE (2)</span>
+</div>
+<div class="flex gap-space-sm overflow-x-auto snap-x snap-mandatory py-space-xs -mx-margin px-margin no-scrollbar">
+<!-- Card 1: Active Workout -->
+<div class="snap-center shrink-0 w-80 rounded-xl bg-surface-container-low p-space-base shadow-xl flex flex-col justify-between relative overflow-hidden">
+<div class="absolute right-0 top-0 w-28 h-28 bg-primary-container/10 rounded-full blur-xl pointer-events-none"></div>
+<div>
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-primary-container bg-primary-container/10 px-space-sm py-0.5 rounded-full font-bold">PRIORITY ALPHA</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-body-sm text-secondary">schedule</span> 55 MIN EST
+            </span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface mt-space-sm">Push Hypertrophy A</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Pectoralis, Anterior Delts, Triceps Lateral</p>
+<div class="flex items-center gap-space-xs mt-space-md bg-surface-container-highest/60 p-space-xs rounded-lg">
+<span class="material-symbols-outlined text-primary text-body-sm">layers</span>
+<span class="font-label-sm text-label-sm text-on-surface">5 Core Exercises</span>
+<span class="text-outline text-body-sm">•</span>
+<span class="font-label-sm text-label-sm text-on-surface">RPE 8.5 Baseline</span>
+</div>
+</div>
+<div class="mt-space-lg flex items-center gap-space-sm">
+<button class="flex-1 py-space-sm px-space-base rounded-full bg-gradient-to-r from-primary-container to-secondary font-headline-md text-on-primary-container tracking-wider flex items-center justify-center gap-space-xs shadow-[0_0_20px_rgba(249,115,22,0.4)] active:scale-95 transition-transform min-h-[48px]" id="start-btn">
+<span class="material-symbols-outlined text-body-lg" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+<span class="font-headline-md text-label-md uppercase font-bold text-surface">Start Workout</span>
+</button>
+<button class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface active:bg-surface-bright transition-colors shrink-0">
+<span class="material-symbols-outlined text-body-lg">tune</span>
+</button>
+</div>
+</div>
+<!-- Card 2: Mobility & Recovery -->
+<div class="snap-center shrink-0 w-80 rounded-xl bg-surface-container-low p-space-base shadow-xl flex flex-col justify-between relative overflow-hidden">
+<div>
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-tertiary bg-tertiary/10 px-space-sm py-0.5 rounded-full font-bold">RECOVERY PROTOCOL</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-body-sm text-tertiary">schedule</span> 15 MIN
+            </span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface mt-space-sm">Mobility &amp; Foam Roll</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Thoracic Spine Extension, Hip Flexor Release</p>
+<div class="flex items-center gap-space-xs mt-space-md bg-surface-container-highest/60 p-space-xs rounded-lg">
+<span class="material-symbols-outlined text-tertiary text-body-sm">self_improvement</span>
+<span class="font-label-sm text-label-sm text-on-surface">3 Decompression Sequences</span>
+</div>
+</div>
+<div class="mt-space-lg">
+<button class="w-full py-space-sm px-space-base rounded-full bg-surface-container-high text-on-surface font-headline-md text-label-md uppercase tracking-wider flex items-center justify-center gap-space-xs hover:bg-surface-bright active:scale-95 transition-all min-h-[48px]">
+<span class="material-symbols-outlined text-body-lg">play_arrow</span>
+<span>Begin Cool-Down</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Muscle Heatmap Highlight Card -->
+<div class="rounded-xl bg-surface-container-low p-space-base shadow-xl flex flex-col space-y-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-body-lg">accessibility_new</span>
+<span class="font-headline-md text-headline-md text-on-surface">Kinetic Impact Map</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary bg-secondary-container/20 px-space-sm py-0.5 rounded-full">ACTIVE LOAD</span>
+</div>
+<!-- Anatomical Graphic & Status Matrix -->
+<div class="grid grid-cols-12 gap-space-sm items-center bg-surface-container-lowest/80 p-space-sm rounded-lg">
+<!-- Anatomical SVG Diagram -->
+<div class="col-span-5 flex justify-center py-space-xs">
+<svg class="w-28 h-40" fill="none" viewbox="0 0 100 160" xmlns="http://www.w3.org/2000/svg">
+<!-- Head / Torso baseline silhouette -->
+<circle class="fill-surface-container-high" cx="50" cy="16" r="10"></circle>
+<path class="fill-surface-container-high" d="M42 30 C30 32 24 45 22 65 L28 66 L34 50 L34 85 L44 85 L44 55 L56 55 L56 85 L66 85 L66 50 L72 66 L78 65 C76 45 70 32 58 30 Z"></path>
+<!-- Legs baseline -->
+<path class="fill-surface-container-high" d="M36 88 L34 140 L44 140 L47 95 L53 95 L56 140 L66 140 L64 88 Z"></path>
+<!-- Heatmap Overlays: Chest (High Strain - Neon Orange) -->
+<path class="fill-primary-container" d="M38 34 C44 32 56 32 62 34 C64 42 60 48 50 50 C40 48 36 42 38 34 Z" style="filter: drop-shadow(0 0 6px rgba(249,115,22,0.9));"></path>
+<!-- Heatmap Overlays: Anterior Shoulders (Moderate/High - Neon Lime) -->
+<circle class="fill-secondary" cx="28" cy="38" r="6" style="filter: drop-shadow(0 0 5px rgba(148,222,45,0.8));"></circle>
+<circle class="fill-secondary" cx="72" cy="38" r="6" style="filter: drop-shadow(0 0 5px rgba(148,222,45,0.8));"></circle>
+<!-- Heatmap Overlays: Triceps (High - Electric Orange) -->
+<path class="fill-primary-container" d="M22 46 L27 46 L25 58 L20 58 Z" style="filter: drop-shadow(0 0 4px rgba(249,115,22,0.8));"></path>
+<path class="fill-primary-container" d="M78 46 L73 46 L75 58 L80 58 Z" style="filter: drop-shadow(0 0 4px rgba(249,115,22,0.8));"></path>
+<!-- Core Stabilizers (Low Strain - Tertiary Dim) -->
+<rect class="fill-tertiary" height="18" opacity="0.4" rx="2" width="12" x="44" y="54"></rect>
+</svg>
+</div>
+<!-- Recovery Status Matrix -->
+<div class="col-span-7 flex flex-col space-y-space-sm pl-space-xs">
+<div>
+<div class="flex justify-between items-center text-body-sm mb-1">
+<span class="text-on-surface font-headline-md text-label-sm uppercase">Pectoralis Major</span>
+<span class="text-primary-container font-headline-md text-label-sm font-bold">92% Strain</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full" style="width: 92%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between items-center text-body-sm mb-1">
+<span class="text-on-surface font-headline-md text-label-sm uppercase">Anterior Deltoids</span>
+<span class="text-secondary font-headline-md text-label-sm font-bold">78% Strain</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 78%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between items-center text-body-sm mb-1">
+<span class="text-on-surface font-headline-md text-label-sm uppercase">Triceps Lateral</span>
+<span class="text-primary-container font-headline-md text-label-sm font-bold">85% Strain</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full" style="width: 85%;"></div>
+</div>
+</div>
+<div class="pt-space-2xs flex items-center gap-space-2xs text-outline">
+<span class="material-symbols-outlined text-body-sm text-secondary">check_circle</span>
+<span class="font-label-sm text-label-sm text-secondary">Back &amp; Quads fully rested</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Hydration & Macro Intake Quick Widget -->
+<div class="rounded-xl bg-surface-container-low p-space-base shadow-xl flex flex-col space-y-space-md">
+<!-- Hydration Module -->
+<div>
+<div class="flex items-center justify-between mb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-tertiary text-body-lg">water_drop</span>
+<span class="font-headline-md text-headline-md text-on-surface">Hydration Tracker</span>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary font-bold" id="hydration-label">2.4L / 3.5L</span>
+</div>
+<div class="flex items-center gap-space-sm mt-space-sm">
+<div class="flex-1 h-3 bg-surface-container-highest rounded-full overflow-hidden p-0.5">
+<div class="h-full bg-gradient-to-r from-tertiary-container to-tertiary rounded-full transition-all duration-300" id="hydration-bar" style="width: 68%;"></div>
+</div>
+<button class="shrink-0 px-space-sm py-1.5 rounded-full bg-tertiary/20 text-tertiary hover:bg-tertiary/30 active:scale-95 transition-all flex items-center gap-1 font-label-md text-label-md" id="add-water-btn">
+<span class="material-symbols-outlined text-body-sm">add</span>
+<span>250ml</span>
+</button>
+</div>
+</div>
+<!-- Macro Fueling Breakdown Bar -->
+<div class="pt-space-sm border-t-0 bg-surface-container-lowest/60 p-space-sm rounded-lg">
+<div class="flex items-center justify-between text-body-sm mb-space-xs">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Macros Fuel Status</span>
+<span class="font-label-sm text-label-sm text-on-surface">195g Protein Target</span>
+</div>
+<!-- Multi-segment Macro Bar -->
+<div class="w-full h-2 rounded-full overflow-hidden flex gap-0.5 bg-surface-container-highest">
+<div class="bg-primary-container h-full" style="width: 45%;" title="Protein 45%"></div>
+<div class="bg-secondary h-full" style="width: 35%;" title="Carbs 35%"></div>
+<div class="bg-tertiary h-full" style="width: 20%;" title="Fats 20%"></div>
+</div>
+<div class="flex items-center justify-between mt-space-sm pt-space-2xs text-center font-label-sm text-label-sm">
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="text-on-surface-variant">Protein 162g</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span class="text-on-surface-variant">Carbs 210g</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+<span class="text-on-surface-variant">Fats 52g</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Visual Motivational Backdrop / Athlete Focus Plate -->
+<div class="relative rounded-xl overflow-hidden shadow-lg h-32 flex items-center justify-between p-space-base bg-surface-container-low">
+<div class="absolute inset-0 bg-cover bg-center opacity-25" data-alt="Intense high-performance athlete in a dark obsidian-lit conditioning lab preparing barbell weights, neon orange and electric lime backlighting, atmospheric dynamic mist, cinematic sports photography." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuALGh5ln97ynJVSpcS8N9CGUYO8Y9E8WphrJSKOJT9zT9f97DZFIlr0-jlhTYEWri8Jn47cjGeygg1HTKVTeQNPjBlakzw6dfX_hddmFka3LvYOVkHQSEajp-MOUiUoKp2c9usMIafQabwrOtYW9DkHJGu78-cKV76StQmquoLbgx16q__oz_T0YVc0Ce3yI3bg48yI7cCL_RY5SV9cLF1X2LVyMYQgg-JcvKpSJj_xG3B1R6MmQYl8')"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-surface-container-low via-surface-container-low/80 to-transparent"></div>
+<div class="relative z-10 flex flex-col justify-center">
+<span class="font-label-sm text-label-sm text-secondary font-bold tracking-wider uppercase">Coach Obsidian Directive</span>
+<h3 class="font-headline-md text-headline-md text-on-surface mt-space-2xs">Focus on concentric velocity today.</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Leave 1 RIR on heavy sets for optimal recovery.</p>
+</div>
+<div class="relative z-10 w-10 h-10 rounded-full bg-surface-container-high/80 flex items-center justify-center text-primary-container shadow-[0_0_12px_rgba(249,115,22,0.3)]">
+<span class="material-symbols-outlined text-body-lg">arrow_forward</span>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    let waterMl = 2400;
+    const maxWater = 3500;
+    const addBtn = document.getElementById('add-water-btn');
+    const waterBar = document.getElementById('hydration-bar');
+    const waterLabel = document.getElementById('hydration-label');
+    const startBtn = document.getElementById('start-btn');
+
+    if (addBtn && waterBar && waterLabel) {
+      addBtn.addEventListener('click', () => {
+        waterMl = Math.min(maxWater, waterMl + 250);
+        const percent = Math.min(100, (waterMl / maxWater) * 100);
+        waterBar.style.width = percent + '%';
+        waterLabel.textContent = (waterMl / 1000).toFixed(1) + 'L / 3.5L';
+        
+        // Quick visual burst
+        addBtn.classList.add('scale-110');
+        setTimeout(() => addBtn.classList.remove('scale-110'), 150);
+      });
+    }
+
+    if (startBtn) {
+      startBtn.addEventListener('click', () => {
+        const originalText = startBtn.innerHTML;
+        startBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-body-lg">progress_activity</span><span class="font-headline-md text-label-md uppercase font-bold text-surface">Initialising...</span>';
+        setTimeout(() => {
+          startBtn.innerHTML = '<span class="material-symbols-outlined text-body-lg">check</span><span class="font-headline-md text-label-md uppercase font-bold text-surface">Session Live</span>';
+        }, 800);
+      });
+    }
+  })();
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/85 backdrop-blur-xl shadow-[0_-4px_16px_rgba(0,0,0,0.2)]" data-active-classes="text-secondary shadow-[0_0_24px_rgba(148,222,45,0.25)] font-bold"><div class="flex justify-around items-center h-20 px-space-sm"><a aria-current="page" class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] w-14 h-14 transition-colors duration-200 text-secondary shadow-[0_0_24px_rgba(148,222,45,0.25)] font-bold" data-path="today" href="#"><span class="material-symbols-outlined text-body-lg">bolt</span><span class="font-label-sm text-label-sm tracking-wide mt-space-2xs">Today</span></a><a class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] w-14 h-14 text-on-surface-variant transition-colors duration-200" data-path="workouts" href="#"><span class="material-symbols-outlined text-body-lg">fitness_center</span><span class="font-label-sm text-label-sm tracking-wide mt-space-2xs">Workouts</span></a><a class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] w-14 h-14 text-on-surface-variant transition-colors duration-200" data-path="nutrition" href="#"><span class="material-symbols-outlined text-body-lg">nutrition</span><span class="font-label-sm text-label-sm tracking-wide mt-space-2xs">Nutrition</span></a><a class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] w-14 h-14 text-on-surface-variant transition-colors duration-200" data-path="analytics" href="#"><span class="material-symbols-outlined text-body-lg">monitoring</span><span class="font-label-sm text-label-sm tracking-wide mt-space-2xs">Analytics</span></a><a class="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] w-14 h-14 text-on-surface-variant transition-colors duration-200" data-path="coach" href="#"><span class="material-symbols-outlined text-body-lg">auto_awesome</span><span class="font-label-sm text-label-sm tracking-wide mt-space-2xs">Coach</span></a></div></nav></body></html>

@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MealGroup } from '../types';
 import { INITIAL_MEALS } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface NutritionScreenProps {
   onOpenQuickLog?: () => void;
 }
 
 export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
+  const { user, profile } = useAuth();
   const [selectedDay, setSelectedDay] = useState<string>('WED 10');
   const [meals, setMeals] = useState<MealGroup[]>(INITIAL_MEALS);
   const [naturalMealInput, setNaturalMealInput] = useState<string>('');
@@ -16,6 +19,48 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
   // Quick Snacking Log
   const [snackLogged, setSnackLogged] = useState(false);
 
+  // Fetch real meals from Supabase if authenticated
+  useEffect(() => {
+    if (!user) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    supabase
+      .from('food_entries')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('eaten_on', todayStr)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          const loadedMeals: MealGroup[] = data.map((fe) => ({
+            id: fe.id,
+            type: (fe.meal_type as any) || 'snack',
+            title: fe.name,
+            time: new Date(fe.created_at).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            description: fe.source === 'ai' ? 'AI Parsed Macro Profile' : 'Manual Nutrition Log',
+            calories: Math.round(Number(fe.calories)),
+            proteinG: Math.round(Number(fe.protein_g)),
+            isExpanded: false,
+            items: [
+              {
+                id: `${fe.id}-item`,
+                name: fe.name,
+                weightG: 180,
+                calories: Math.round(Number(fe.calories)),
+                proteinG: Math.round(Number(fe.protein_g)),
+                carbsG: Math.round(Number(fe.carbs_g)),
+                fatG: Math.round(Number(fe.fat_g)),
+              },
+            ],
+          }));
+          setMeals(loadedMeals);
+        }
+      });
+  }, [user]);
+
   // Toggle meal card expansion
   const toggleMealExpand = (id: string) => {
     setMeals((prev) =>
@@ -23,25 +68,15 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
     );
   };
 
-  // Delete an item from dinner
-  const handleDeleteItem = (mealId: string, itemId: string) => {
-    setMeals((prev) =>
-      prev.map((m) => {
-        if (m.id !== mealId) return m;
-        const remainingItems = m.items.filter((item) => item.id !== itemId);
-        const newCals = remainingItems.reduce((acc, it) => acc + it.calories, 0);
-        const newProt = remainingItems.reduce((acc, it) => acc + it.proteinG, 0);
-        return {
-          ...m,
-          items: remainingItems,
-          calories: newCals,
-          proteinG: newProt,
-        };
-      })
-    );
+  // Delete an item from meal or database
+  const handleDeleteItem = async (mealId: string, itemId: string) => {
+    if (user) {
+      await supabase.from('food_entries').delete().eq('id', mealId).eq('user_id', user.id);
+    }
+    setMeals((prev) => prev.filter((m) => m.id !== mealId));
   };
 
-  // AI Meal Estimation
+  // AI Meal Estimation + Supabase Auto-Persistence
   const handleEstimateWithAi = async () => {
     const query = naturalMealInput.trim();
     if (!query) return;
@@ -56,37 +91,63 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
       const data = await res.json();
 
       if (data && data.calories) {
+        let savedId = `meal-${Date.now()}`;
+
+        // Save to Supabase if authenticated
+        if (user) {
+          const { data: dbEntry } = await supabase
+            .from('food_entries')
+            .insert({
+              user_id: user.id,
+              eaten_on: new Date().toISOString().split('T')[0],
+              meal_type: 'snack',
+              name: data.title || query,
+              calories: data.calories,
+              protein_g: data.protein_g || 30,
+              carbs_g: data.carbs_g || 40,
+              fat_g: data.fat_g || 10,
+              source: 'ai',
+            })
+            .select()
+            .single();
+
+          if (dbEntry) {
+            savedId = dbEntry.id;
+          }
+        }
+
         const newMeal: MealGroup = {
-          id: `meal-${Date.now()}`,
+          id: savedId,
           type: 'snack',
           title: data.title || 'AI Logged Fuel',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           description: query,
-          calories: data.calories,
-          proteinG: data.protein_g || 35,
+          calories: Math.round(data.calories),
+          proteinG: Math.round(data.protein_g || 35),
           isExpanded: true,
           isRecent: true,
-          items: data.items && data.items.length > 0
-            ? data.items.map((it: any, i: number) => ({
-                id: `ai-item-${Date.now()}-${i}`,
-                name: it.name || query,
-                weightG: it.weight_g || 150,
-                calories: it.calories || 250,
-                proteinG: it.protein_g || 25,
-                carbsG: it.carbs_g || 20,
-                fatG: it.fat_g || 8,
-              }))
-            : [
-                {
-                  id: `ai-item-${Date.now()}`,
-                  name: query,
-                  weightG: 250,
-                  calories: data.calories,
-                  proteinG: data.protein_g || 35,
-                  carbsG: data.carbs_g || 40,
-                  fatG: data.fat_g || 12,
-                },
-              ],
+          items:
+            data.items && data.items.length > 0
+              ? data.items.map((it: any, i: number) => ({
+                  id: `ai-item-${Date.now()}-${i}`,
+                  name: it.name || query,
+                  weightG: it.weight_g || 150,
+                  calories: Math.round(it.calories || 250),
+                  proteinG: Math.round(it.protein_g || 25),
+                  carbsG: Math.round(it.carbs_g || 20),
+                  fatG: Math.round(it.fat_g || 8),
+                }))
+              : [
+                  {
+                    id: `ai-item-${Date.now()}`,
+                    name: query,
+                    weightG: 250,
+                    calories: Math.round(data.calories),
+                    proteinG: Math.round(data.protein_g || 35),
+                    carbsG: Math.round(data.carbs_g || 40),
+                    fatG: Math.round(data.fat_g || 12),
+                  },
+                ],
         };
 
         setMeals((prev) => [newMeal, ...prev]);
@@ -108,6 +169,22 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
     { label: 'FRI', num: '12' },
     { label: 'SAT', num: '13' },
   ];
+
+  const totalCalories = meals.reduce((sum, m) => sum + (m.calories || 0), 0);
+  const totalProtein = meals.reduce((sum, m) => sum + (m.proteinG || 0), 0);
+  const totalCarbs = meals.reduce(
+    (sum, m) => sum + m.items.reduce((iSum, it) => iSum + (it.carbsG || 0), 0),
+    0
+  );
+  const totalFat = meals.reduce(
+    (sum, m) => sum + m.items.reduce((iSum, it) => iSum + (it.fatG || 0), 0),
+    0
+  );
+  const calorieTarget = profile?.calorie_target || 2600;
+  const proteinTarget = profile?.protein_target_g || 190;
+  const remainingCalories = Math.max(0, calorieTarget - totalCalories);
+  const proteinPercent = Math.min(100, Math.round((totalProtein / proteinTarget) * 100));
+  const carbsPercent = Math.min(100, Math.round((totalCarbs / 280) * 100));
 
   return (
     <div className="flex flex-col w-full px-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5 pb-32 pt-2">
@@ -173,14 +250,14 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
                 Energy Intake
               </span>
               <span className="px-2 py-0.5 rounded-full bg-[#94de2d]/15 text-[#94de2d] font-['Space_Grotesk'] text-[10px] font-bold">
-                In Deficit
+                {totalCalories <= calorieTarget ? 'In Deficit' : 'Surplus Target'}
               </span>
             </div>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-['Space_Grotesk'] text-3xl sm:text-4xl font-bold tracking-tight text-[#e5e1e4] tabular-nums">
-                2,140
+                {totalCalories.toLocaleString()}
               </span>
-              <span className="text-sm text-[#e0c0b1]/80">/ 2,600 kcal</span>
+              <span className="text-sm text-[#e0c0b1]/80">/ {calorieTarget.toLocaleString()} kcal</span>
             </div>
           </div>
 
@@ -191,7 +268,7 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
             <div className="flex items-center gap-1.5 mt-1 px-3 py-1 rounded-xl bg-[#2a2a2c] border border-[#353437]">
               <span className="material-symbols-outlined text-[#f97316] text-[16px]">bolt</span>
               <span className="font-['Space_Grotesk'] text-lg font-bold text-[#ffdbca] tabular-nums">
-                460
+                {remainingCalories.toLocaleString()}
               </span>
               <span className="font-['Space_Grotesk'] text-[10px] text-[#a78b7d]">kcal</span>
             </div>
@@ -207,19 +284,19 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
                 Protein
               </span>
               <span className="font-['Space_Grotesk'] text-xs font-bold text-[#94de2d]">
-                87%
+                {proteinPercent}%
               </span>
             </div>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-['Space_Grotesk'] text-xl font-bold text-[#e5e1e4] tabular-nums">
-                165
+                {totalProtein}
               </span>
-              <span className="text-xs text-[#a78b7d]">/ 190g</span>
+              <span className="text-xs text-[#a78b7d]">/ {proteinTarget}g</span>
             </div>
             <div className="w-full h-1.5 rounded-full bg-[#353437] mt-2 overflow-hidden">
               <div
                 className="h-full rounded-full bg-[#94de2d] shadow-[0_0_12px_rgba(148,222,45,0.8)]"
-                style={{ width: '87%' }}
+                style={{ width: `${proteinPercent}%` }}
               />
             </div>
           </div>
@@ -231,13 +308,22 @@ export const NutritionScreen: React.FC<NutritionScreenProps> = () => {
                 Carbs
               </span>
               <span className="font-['Space_Grotesk'] text-xs font-bold text-[#f97316]">
-                75%
+                {carbsPercent}%
               </span>
             </div>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-['Space_Grotesk'] text-xl font-bold text-[#e5e1e4] tabular-nums">
-                210
+                {totalCarbs}
               </span>
+              <span className="text-xs text-[#a78b7d]">/ 280g</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-[#353437] mt-2 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#f97316] shadow-[0_0_12px_rgba(249,115,22,0.8)]"
+                style={{ width: `${carbsPercent}%` }}
+              />
+            </div>
+          </div>
               <span className="text-xs text-[#a78b7d]">/ 280g</span>
             </div>
             <div className="w-full h-1.5 rounded-full bg-[#353437] mt-2 overflow-hidden">

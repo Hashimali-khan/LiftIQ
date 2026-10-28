@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface TodayScreenProps {
   onStartWorkout: () => void;
@@ -9,9 +11,27 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   onStartWorkout,
   onNavigateTab,
 }) => {
+  const { user, profile } = useAuth();
   const [hydrationMl, setHydrationMl] = useState<number>(2400);
   const maxHydration = 3500;
   const [waterBurst, setWaterBurst] = useState(false);
+  const [todayCalories, setTodayCalories] = useState<number>(2140);
+
+  useEffect(() => {
+    if (!user) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    supabase
+      .from('food_entries')
+      .select('calories')
+      .eq('user_id', user.id)
+      .eq('eaten_on', todayStr)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const total = data.reduce((s, d) => s + Number(d.calories), 0);
+          setTodayCalories(Math.round(total));
+        }
+      });
+  }, [user]);
 
   const handleAddWater = () => {
     setHydrationMl((prev) => Math.min(maxHydration, prev + 250));
@@ -20,6 +40,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   };
 
   const hydrationPercent = Math.min(100, (hydrationMl / maxHydration) * 100);
+  const athleteGreeting = profile?.name || (user?.email ? user.email.split('@')[0] : 'Alex');
 
   return (
     <div className="flex flex-col w-full px-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5 pb-28 pt-2">
@@ -29,7 +50,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         <div className="flex flex-col space-y-3 relative z-10">
           <div className="flex items-center justify-between">
             <span className="font-['Space_Grotesk'] text-[11px] uppercase tracking-wider text-[#a78b7d]">
-              Kinetic Sync • 18:42 PM
+              Kinetic Sync • Live DB Active
             </span>
             <div className="flex items-center gap-1.5 bg-[#7ac100]/20 border border-[#94de2d]/30 px-3 py-0.5 rounded-full shadow-[0_0_12px_rgba(148,222,45,0.2)]">
               <span className="w-1.5 h-1.5 rounded-full bg-[#94de2d] animate-pulse" />
@@ -41,7 +62,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
           <div className="flex items-end justify-between">
             <div>
               <h1 className="font-['Space_Grotesk'] text-2xl sm:text-3xl font-bold text-[#e5e1e4] tracking-tight">
-                Good evening, Alex
+                Good day, {athleteGreeting}
               </h1>
               <p className="text-sm text-[#e0c0b1]/80 mt-0.5">
                 Prime neuromuscular recovery window unlocked.

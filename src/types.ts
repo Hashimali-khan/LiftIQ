@@ -10,10 +10,15 @@ export interface WorkoutSet {
   isWarmup: boolean;
   isDone: boolean;
   isPr?: boolean;
+  isPrWeight?: boolean;
+  isPrE1rm?: boolean;
+  e1rm?: number;
 }
 
 export interface ExerciseItem {
   id: string;
+  dbExerciseId?: string;
+  workoutExerciseId?: string;
   name: string;
   muscleGroup: string;
   setsPlanned: number;

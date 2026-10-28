@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchExercisesFromDb, DbExercise } from '../lib/workoutService';
 
 interface WorkoutsScreenProps {
   onStartWorkout: () => void;
@@ -7,6 +8,21 @@ interface WorkoutsScreenProps {
 export const WorkoutsScreen: React.FC<WorkoutsScreenProps> = ({ onStartWorkout }) => {
   const [filterMuscle, setFilterMuscle] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [dbExercises, setDbExercises] = useState<DbExercise[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchExercisesFromDb().then((data) => {
+      if (isMounted) {
+        setDbExercises(data);
+        setLoading(false);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const routines = [
     {
@@ -51,23 +67,13 @@ export const WorkoutsScreen: React.FC<WorkoutsScreenProps> = ({ onStartWorkout }
     },
   ];
 
-  const exercisesLibrary = [
-    { name: 'Barbell Incline Bench Press', muscle: 'Chest', equipment: 'Barbell', target: 'Upper Pectoralis' },
-    { name: 'Dumbbell Incline Flyes', muscle: 'Chest', equipment: 'Dumbbells', target: 'Sternal Pectoralis' },
-    { name: 'High-to-Low Cable Flyes', muscle: 'Chest', equipment: 'Cable', target: 'Lower Costal' },
-    { name: 'Overhead Barbell Press', muscle: 'Shoulders', equipment: 'Barbell', target: 'Anterior Deltoids' },
-    { name: 'Lateral Cable Raises', muscle: 'Shoulders', equipment: 'Cable', target: 'Lateral Deltoids' },
-    { name: 'Barbell Romanian Deadlift', muscle: 'Legs', equipment: 'Barbell', target: 'Hamstrings / Glutes' },
-    { name: 'Barbell Back Squat', muscle: 'Legs', equipment: 'Barbell', target: 'Quads / Core' },
-    { name: 'Weighted Pull-Ups', muscle: 'Back', equipment: 'Bodyweight + Plates', target: 'Latissimus Dorsi' },
-    { name: 'Chest-Supported Row', muscle: 'Back', equipment: 'Machine / Dumbbell', target: 'Mid-Traps / Rhomboids' },
-    { name: 'Overhead Rope Tricep Extension', muscle: 'Arms', equipment: 'Cable', target: 'Triceps Long Head' },
-    { name: 'Incline Dumbbell Bicep Curl', muscle: 'Arms', equipment: 'Dumbbells', target: 'Biceps Brachii' },
-  ];
-
-  const filteredExercises = exercisesLibrary.filter((ex) => {
-    const matchesMuscle = filterMuscle === 'All' || ex.muscle === filterMuscle;
-    const matchesSearch = ex.name.toLowerCase().includes(searchQuery.toLowerCase()) || ex.target.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredExercises = dbExercises.filter((ex) => {
+    const matchesMuscle =
+      filterMuscle === 'All' || ex.muscle_group.toLowerCase() === filterMuscle.toLowerCase();
+    const matchesSearch =
+      ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (ex.target_muscle && ex.target_muscle.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      ex.equipment.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesMuscle && matchesSearch;
   });
 
@@ -135,24 +141,32 @@ export const WorkoutsScreen: React.FC<WorkoutsScreenProps> = ({ onStartWorkout }
                   <p className="text-xs text-[#a78b7d] mt-0.5">{routine.focus}</p>
                 </div>
                 {routine.isToday && (
-                  <span className="px-2 py-0.5 rounded-full bg-[#f97316]/20 text-[#f97316] text-[10px] font-['Space_Grotesk'] font-bold">
-                    Active
+                  <span className="px-2 py-0.5 rounded-full bg-[#f97316]/20 text-[#f97316] text-[10px] font-bold font-['Space_Grotesk']">
+                    TODAY
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center gap-4 mt-3 pt-2 border-t border-[#2a2a2c] text-xs font-['Space_Grotesk'] text-[#e0c0b1]">
-                <span>⏱ {routine.duration}</span>
-                <span>🏋️ {routine.exercises} Exercises</span>
-                <span>⚡ RPE {routine.rpe}</span>
-              </div>
-
-              <div className="mt-3 flex items-center justify-end">
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#2a2a2c] text-xs font-['Space_Grotesk'] text-[#a78b7d]">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">schedule</span>
+                    {routine.duration}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">fitness_center</span>
+                    {routine.exercises} ex
+                  </span>
+                  <span className="flex items-center gap-1 text-[#ffb690]">
+                    RPE {routine.rpe}
+                  </span>
+                </div>
                 <button
                   onClick={onStartWorkout}
-                  className="px-3.5 py-1.5 rounded-full bg-[#2a2a2c] hover:bg-[#353437] text-[#94de2d] border border-[#94de2d]/30 font-['Space_Grotesk'] text-xs font-semibold cursor-pointer"
+                  className="text-[#94de2d] font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
                 >
-                  Start Routine
+                  <span>Start</span>
+                  <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                 </button>
               </div>
             </div>
@@ -160,19 +174,24 @@ export const WorkoutsScreen: React.FC<WorkoutsScreenProps> = ({ onStartWorkout }
         </div>
       </section>
 
-      {/* Exercise Library Explorer */}
-      <section className="space-y-3">
+      {/* Supabase Live Exercise Library */}
+      <section className="space-y-3 pt-2">
         <div className="flex items-center justify-between px-1">
-          <span className="font-['Space_Grotesk'] text-lg font-bold text-[#e5e1e4]">
-            Exercise Library
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-['Space_Grotesk'] text-lg font-bold text-[#e5e1e4]">
+              Exercise Library
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#94de2d]/20 text-[#94de2d] border border-[#94de2d]/30 font-['Space_Grotesk']">
+              Live DB
+            </span>
+          </div>
           <span className="font-['Space_Grotesk'] text-xs text-[#a78b7d]">
-            {filteredExercises.length} Movements
+            {filteredExercises.length} Movements Available
           </span>
         </div>
 
         {/* Search Well */}
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[#1c1b1d] border border-[#2a2a2c]">
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[#1c1b1d] border border-[#2a2a2c] focus-within:border-[#f97316]">
           <span className="material-symbols-outlined text-[#a78b7d] text-[20px]">search</span>
           <input
             type="text"
@@ -185,7 +204,7 @@ export const WorkoutsScreen: React.FC<WorkoutsScreenProps> = ({ onStartWorkout }
 
         {/* Muscle Filter Chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms'].map((muscle) => (
+          {['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Calves'].map((muscle) => (
             <button
               key={muscle}
               onClick={() => setFilterMuscle(muscle)}
@@ -201,39 +220,53 @@ export const WorkoutsScreen: React.FC<WorkoutsScreenProps> = ({ onStartWorkout }
         </div>
 
         {/* Exercises List */}
-        <div className="space-y-2">
-          {filteredExercises.map((ex, i) => (
-            <div
-              key={i}
-              className="p-3.5 rounded-xl bg-[#1c1b1d] border border-[#2a2a2c] flex items-center justify-between hover:bg-[#201f22] transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#2a2a2c] border border-[#353437] flex items-center justify-center text-[#ffb690]">
-                  <span className="material-symbols-outlined text-[18px]">fitness_center</span>
-                </div>
-                <div>
-                  <h4 className="font-['Space_Grotesk'] text-sm font-semibold text-[#e5e1e4]">
-                    {ex.name}
-                  </h4>
-                  <div className="flex items-center gap-2 text-[11px] text-[#a78b7d] mt-0.5">
-                    <span>{ex.muscle}</span>
-                    <span>•</span>
-                    <span>{ex.equipment}</span>
-                    <span>•</span>
-                    <span className="text-[#94de2d]">{ex.target}</span>
+        {loading ? (
+          <div className="p-8 text-center text-xs text-[#a78b7d] font-['Space_Grotesk']">
+            Loading exercises from Supabase...
+          </div>
+        ) : filteredExercises.length === 0 ? (
+          <div className="p-8 text-center text-xs text-[#a78b7d] font-['Space_Grotesk']">
+            No exercises match your filter.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredExercises.map((ex) => (
+              <div
+                key={ex.id}
+                className="p-3.5 rounded-xl bg-[#1c1b1d] border border-[#2a2a2c] flex items-center justify-between hover:bg-[#201f22] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#2a2a2c] border border-[#353437] flex items-center justify-center text-[#ffb690]">
+                    <span className="material-symbols-outlined text-[18px]">fitness_center</span>
+                  </div>
+                  <div>
+                    <h4 className="font-['Space_Grotesk'] text-sm font-semibold text-[#e5e1e4]">
+                      {ex.name}
+                    </h4>
+                    <div className="flex items-center gap-2 text-[11px] text-[#a78b7d] mt-0.5">
+                      <span className="font-bold text-[#f97316]">{ex.muscle_group}</span>
+                      <span>•</span>
+                      <span>{ex.equipment}</span>
+                      {ex.target_muscle && (
+                        <>
+                          <span>•</span>
+                          <span className="text-[#94de2d]">{ex.target_muscle}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
+                <button
+                  onClick={onStartWorkout}
+                  className="w-8 h-8 rounded-lg bg-[#2a2a2c] flex items-center justify-center text-[#a78b7d] hover:text-[#94de2d] border border-[#353437] cursor-pointer"
+                  title="Start Session with this Exercise"
+                >
+                  <span className="material-symbols-outlined text-[18px]">play_arrow</span>
+                </button>
               </div>
-              <button
-                onClick={onStartWorkout}
-                className="w-8 h-8 rounded-lg bg-[#2a2a2c] flex items-center justify-center text-[#a78b7d] hover:text-[#94de2d] border border-[#353437] cursor-pointer"
-                title="Add to Active Routine"
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span>
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

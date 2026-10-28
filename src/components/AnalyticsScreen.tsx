@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { INITIAL_WEIGHT_HISTORY } from '../data/mockData';
 import { WeightRecord } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 export const AnalyticsScreen: React.FC = () => {
+  const { user } = useAuth();
   const [metricTab, setMetricTab] = useState<'weight' | 'tonnage' | '1rm' | 'calories'>('weight');
   const [timeframe, setTimeframe] = useState<'1W' | '1M' | '3M' | '6M' | 'ALL'>('1M');
   const [currentWeight, setCurrentWeight] = useState<number>(78.4);
@@ -10,6 +13,41 @@ export const AnalyticsScreen: React.FC = () => {
   const [standardConditions, setStandardConditions] = useState<boolean>(true);
   const [weightLogs, setWeightLogs] = useState<WeightRecord[]>(INITIAL_WEIGHT_HISTORY);
   const [savedAlert, setSavedAlert] = useState<boolean>(false);
+
+  // Fetch real weight records from Supabase if logged in
+  useEffect(() => {
+    if (!user) return;
+
+    supabase
+      .from('weight_entries')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('measured_on', { ascending: false })
+      .limit(30)
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          const mapped: WeightRecord[] = data.map((entry, idx) => {
+            const nextOlder = data[idx + 1];
+            const delta = nextOlder
+              ? parseFloat((Number(entry.weight_kg) - Number(nextOlder.weight_kg)).toFixed(1))
+              : 0;
+            return {
+              date: entry.measured_on,
+              dayLabel: idx === 0 ? 'Today' : entry.measured_on,
+              dayNumber: entry.measured_on.split('-')[2] || '01',
+              weightKg: Number(entry.weight_kg),
+              deltaKg: delta,
+              rollingAvg7dKg: Number(entry.weight_kg),
+              tag: entry.note || (standardConditions ? 'Fasted AM' : 'Standard'),
+              standardConditions: entry.note === 'Fasted AM',
+            };
+          });
+          setWeightLogs(mapped);
+          setCurrentWeight(Number(data[0].weight_kg));
+          setInputWeight(Number(data[0].weight_kg));
+        }
+      });
+  }, [user]);
 
   const handleDecrement = () => {
     setInputWeight((prev) => Math.max(30, parseFloat((prev - 0.1).toFixed(1))));
@@ -19,21 +57,38 @@ export const AnalyticsScreen: React.FC = () => {
     setInputWeight((prev) => Math.min(250, parseFloat((prev + 0.1).toFixed(1))));
   };
 
-  const handleLogWeight = () => {
+  const handleLogWeight = async () => {
     setCurrentWeight(inputWeight);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const prevWeight = weightLogs[0]?.weightKg || inputWeight;
+
     const newRecord: WeightRecord = {
-      date: new Date().toISOString().split('T')[0],
+      date: todayStr,
       dayLabel: 'Today',
       dayNumber: String(new Date().getDate()).padStart(2, '0'),
       weightKg: inputWeight,
-      deltaKg: parseFloat((inputWeight - 78.6).toFixed(1)),
-      rollingAvg7dKg: parseFloat(((inputWeight + 78.6 * 6) / 7).toFixed(1)),
+      deltaKg: parseFloat((inputWeight - prevWeight).toFixed(1)),
+      rollingAvg7dKg: parseFloat(((inputWeight + prevWeight * 6) / 7).toFixed(1)),
       tag: standardConditions ? 'Fasted AM' : 'Non-standard',
       standardConditions,
     };
-    setWeightLogs((prev) => [newRecord, ...prev]);
+
+    setWeightLogs((prev) => [newRecord, ...prev.filter((w) => w.date !== todayStr)]);
     setSavedAlert(true);
     setTimeout(() => setSavedAlert(false), 2000);
+
+    // Save to Supabase
+    if (user) {
+      await supabase.from('weight_entries').upsert(
+        {
+          user_id: user.id,
+          measured_on: todayStr,
+          weight_kg: inputWeight,
+          note: standardConditions ? 'Fasted AM' : 'Non-standard',
+        },
+        { onConflict: 'user_id,measured_on' }
+      );
+    }
   };
 
   return (

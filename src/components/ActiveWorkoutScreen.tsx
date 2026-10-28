@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { WorkoutSession, WorkoutSet } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { WorkoutSession, WorkoutSet, ExerciseItem } from '../types';
+import { useAuth } from '../context/AuthContext';
+import {
+  fetchExercisesFromDb,
+  startDbWorkoutSession,
+  addExerciseToDbSession,
+  logWorkoutSetRpc,
+  finishDbWorkoutSession,
+  DbExercise,
+} from '../lib/workoutService';
 
 interface ActiveWorkoutScreenProps {
   session: WorkoutSession;
-  onFinish: () => void;
+  onFinish: (stats: { durationMinutes: number; tonnageKg: number; prCount: number }) => void;
   onBack: () => void;
 }
 
@@ -12,23 +21,70 @@ export const ActiveWorkoutScreen: React.FC<ActiveWorkoutScreenProps> = ({
   onFinish,
   onBack,
 }) => {
-  // Elapsed timer starting from 38 mins 42 secs (2322 seconds)
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(2322);
-  const [heartRate, setHeartRate] = useState<number>(148);
-  const [showPrBanner, setShowPrBanner] = useState<boolean>(true);
+  const { user } = useAuth();
+  const [dbSessionId, setDbSessionId] = useState<string>(session.id || crypto.randomUUID());
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [heartRate, setHeartRate] = useState<number>(142);
+  const [showPrBanner, setShowPrBanner] = useState<boolean>(false);
+  const [prBannerText, setPrBannerText] = useState<string>('');
+  const [prCount, setPrCount] = useState<number>(0);
 
-  // Rest timer starting at 84 seconds (01:24)
-  const [restSeconds, setRestSeconds] = useState<number>(84);
+  // Rest timer
+  const [restSeconds, setRestSeconds] = useState<number>(0);
   const [restTotalDuration, setRestTotalDuration] = useState<number>(90);
 
   // Exercises state
-  const [exercises, setExercises] = useState(session.exercises);
-  const [isNextUpExpanded, setIsNextUpExpanded] = useState<boolean>(false);
+  const [exercises, setExercises] = useState<ExerciseItem[]>(session.exercises || []);
+  const [activeExerciseIndex, setActiveExerciseIndex] = useState<number>(0);
 
-  // Active set editing values for Set 3
-  const [activeSetKg, setActiveSetKg] = useState<string>('87.5');
-  const [activeSetReps, setActiveSetReps] = useState<string>('6');
-  const [activeSetRir, setActiveSetRir] = useState<string>('1');
+  // Exercise Picker Modal state
+  const [isExercisePickerOpen, setIsExercisePickerOpen] = useState<boolean>(false);
+  const [dbExercisesList, setDbExercisesList] = useState<DbExercise[]>([]);
+  const [exerciseSearch, setExerciseSearch] = useState<string>('');
+  const [selectedMuscle, setSelectedMuscle] = useState<string>('All');
+  const [savingSetId, setSavingSetId] = useState<string | null>(null);
+
+  const workoutExerciseIds = useRef<Record<string, string>>({});
+
+  // Initialize DB workout session on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initSession() {
+      if (!user) return;
+      try {
+        const sid = await startDbWorkoutSession(user.id, session.name, session.targetRpe || 8.5);
+        if (isMounted) {
+          setDbSessionId(sid);
+        }
+
+        // Link existing exercises to DB session
+        for (let i = 0; i < exercises.length; i++) {
+          const ex = exercises[i];
+          const weId = await addExerciseToDbSession(
+            sid,
+            user.id,
+            ex.dbExerciseId || crypto.randomUUID(),
+            i
+          );
+          workoutExerciseIds.current[ex.id] = weId;
+        }
+      } catch (err) {
+        console.warn('Could not initialize DB session:', err);
+      }
+    }
+
+    initSession();
+
+    // Fetch full exercise library from Supabase
+    fetchExercisesFromDb().then((data) => {
+      if (isMounted) setDbExercisesList(data);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   // Elapsed timer ticker
   useEffect(() => {
@@ -38,12 +94,12 @@ export const ActiveWorkoutScreen: React.FC<ActiveWorkoutScreenProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Heart rate micro-oscillation (simulating live Bluetooth BLE monitor)
+  // Heart rate micro-oscillation (simulating BLE telemetry)
   useEffect(() => {
     const hrInterval = setInterval(() => {
       setHeartRate((prev) => {
         const delta = Math.floor(Math.random() * 3) - 1;
-        return Math.min(172, Math.max(138, prev + delta));
+        return Math.min(172, Math.max(136, prev + delta));
       });
     }, 3000);
     return () => clearInterval(hrInterval);
@@ -51,11 +107,12 @@ export const ActiveWorkoutScreen: React.FC<ActiveWorkoutScreenProps> = ({
 
   // Rest timer countdown
   useEffect(() => {
+    if (restSeconds <= 0) return;
     const rInterval = setInterval(() => {
       setRestSeconds((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(rInterval);
-  }, []);
+  }, [restSeconds]);
 
   const formatTime = (totalSecs: number) => {
     const hrs = Math.floor(totalSecs / 3600);
@@ -76,30 +133,98 @@ export const ActiveWorkoutScreen: React.FC<ActiveWorkoutScreenProps> = ({
     setRestSeconds(0);
   };
 
-  const handleToggleSet = (exerciseId: string, setId: string) => {
+  // Update set weight, reps, or rir in state
+  const handleUpdateSetValue = (
+    exerciseId: string,
+    setId: string,
+    field: 'weightKg' | 'reps' | 'rir',
+    value: number
+  ) => {
     setExercises((prev) =>
       prev.map((ex) => {
         if (ex.id !== exerciseId) return ex;
         return {
           ...ex,
-          sets: ex.sets.map((st) => {
-            if (st.id !== setId) return st;
-            const newDone = !st.isDone;
-            if (newDone) {
-              // Trigger rest timer
-              setRestSeconds(90);
-              setRestTotalDuration(90);
-              if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100]);
-              }
-            }
-            return { ...st, isDone: newDone };
-          }),
+          sets: ex.sets.map((st) => (st.id === setId ? { ...st, [field]: value } : st)),
         };
       })
     );
   };
 
+  // Complete / Toggle set with Supabase RPC Epley PR engine
+  const handleToggleSet = async (exerciseId: string, setItem: WorkoutSet) => {
+    const newDoneState = !setItem.isDone;
+
+    // Optimistically update UI
+    setExercises((prev) =>
+      prev.map((ex) => {
+        if (ex.id !== exerciseId) return ex;
+        return {
+          ...ex,
+          sets: ex.sets.map((st) => (st.id === setItem.id ? { ...st, isDone: newDoneState } : st)),
+        };
+      })
+    );
+
+    if (newDoneState) {
+      // Trigger rest timer
+      setRestSeconds(90);
+      setRestTotalDuration(90);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+      }
+
+      // If user is authenticated, save via Supabase RPC
+      if (user) {
+        setSavingSetId(setItem.id);
+        const weId = workoutExerciseIds.current[exerciseId] || crypto.randomUUID();
+
+        const result = await logWorkoutSetRpc({
+          setId: setItem.id.includes('-') && setItem.id.length === 36 ? setItem.id : crypto.randomUUID(),
+          workoutExerciseId: weId,
+          userId: user.id,
+          setNumber: setItem.setNumber,
+          weightKg: setItem.weightKg,
+          reps: setItem.reps,
+          rir: setItem.rir,
+          isWarmup: setItem.isWarmup,
+        });
+
+        setSavingSetId(null);
+
+        if (result && (result.is_pr_weight || result.is_pr_e1rm)) {
+          setPrCount((prev) => prev + 1);
+          const currentEx = exercises.find((e) => e.id === exerciseId);
+          setPrBannerText(
+            `New PR on ${currentEx?.name || 'Exercise'}! ${setItem.weightKg}kg for ${setItem.reps} reps (e1RM: ${result.e1rm}kg)`
+          );
+          setShowPrBanner(true);
+
+          setExercises((prev) =>
+            prev.map((ex) => {
+              if (ex.id !== exerciseId) return ex;
+              return {
+                ...ex,
+                sets: ex.sets.map((st) =>
+                  st.id === setItem.id
+                    ? {
+                        ...st,
+                        isPr: true,
+                        isPrWeight: result.is_pr_weight,
+                        isPrE1rm: result.is_pr_e1rm,
+                        e1rm: result.e1rm,
+                      }
+                    : st
+                ),
+              };
+            })
+          );
+        }
+      }
+    }
+  };
+
+  // Add new set to an exercise
   const handleAddSet = (exerciseId: string) => {
     setExercises((prev) =>
       prev.map((ex) => {
@@ -107,7 +232,7 @@ export const ActiveWorkoutScreen: React.FC<ActiveWorkoutScreenProps> = ({
         const lastSet = ex.sets[ex.sets.length - 1];
         const newSetNumber = ex.sets.length + 1;
         const newSet: WorkoutSet = {
-          id: `set-${Date.now()}`,
+          id: crypto.randomUUID(),
           setNumber: newSetNumber,
           prev: lastSet ? `${lastSet.weightKg}×${lastSet.reps}` : '80×10',
           weightKg: lastSet ? lastSet.weightKg : 80,
@@ -125,17 +250,111 @@ export const ActiveWorkoutScreen: React.FC<ActiveWorkoutScreenProps> = ({
     );
   };
 
-  // Rest timer circle dash calculations
+  // Add an exercise from Supabase to the active workout
+  const handleSelectDbExercise = async (dbEx: DbExercise) => {
+    const newExId = crypto.randomUUID();
+    const newExerciseItem: ExerciseItem = {
+      id: newExId,
+      dbExerciseId: dbEx.id,
+      name: dbEx.name,
+      muscleGroup: dbEx.muscle_group,
+      setsPlanned: 3,
+      historyNote: dbEx.description || undefined,
+      sets: [
+        {
+          id: crypto.randomUUID(),
+          setNumber: 1,
+          prev: '—',
+          weightKg: 60,
+          reps: 10,
+          rir: 2,
+          isWarmup: false,
+          isDone: false,
+        },
+        {
+          id: crypto.randomUUID(),
+          setNumber: 2,
+          prev: '—',
+          weightKg: 65,
+          reps: 8,
+          rir: 1,
+          isWarmup: false,
+          isDone: false,
+        },
+        {
+          id: crypto.randomUUID(),
+          setNumber: 3,
+          prev: '—',
+          weightKg: 70,
+          reps: 6,
+          rir: 1,
+          isWarmup: false,
+          isDone: false,
+        },
+      ],
+    };
+
+    setExercises((prev) => [...prev, newExerciseItem]);
+    setActiveExerciseIndex(exercises.length);
+    setIsExercisePickerOpen(false);
+
+    if (user) {
+      const weId = await addExerciseToDbSession(dbSessionId, user.id, dbEx.id, exercises.length);
+      workoutExerciseIds.current[newExId] = weId;
+    }
+  };
+
+  // Complete workout and calculate real stats
+  const handleCompleteSession = async () => {
+    let totalTonnage = 0;
+    exercises.forEach((ex) => {
+      ex.sets.forEach((st) => {
+        if (st.isDone) {
+          totalTonnage += st.weightKg * st.reps;
+        }
+      });
+    });
+
+    const durationMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
+
+    if (user) {
+      await finishDbWorkoutSession(
+        dbSessionId,
+        user.id,
+        durationMinutes,
+        Math.round(totalTonnage),
+        `Completed with ${exercises.length} exercises. PRs: ${prCount}`
+      );
+    }
+
+    onFinish({
+      durationMinutes,
+      tonnageKg: Math.round(totalTonnage),
+      prCount,
+    });
+  };
+
+  // Rest timer progress circle calculation
   const radius = 14;
-  const circumference = 2 * Math.PI * radius; // ~88
+  const circumference = 2 * Math.PI * radius;
   const strokeDashoffset =
     restTotalDuration > 0
       ? circumference - (restSeconds / restTotalDuration) * circumference
       : circumference;
 
+  const currentExercise = exercises[activeExerciseIndex] || exercises[0];
+
+  const filteredDbExercises = dbExercisesList.filter((e) => {
+    const matchesM = selectedMuscle === 'All' || e.muscle_group.toLowerCase() === selectedMuscle.toLowerCase();
+    const matchesS =
+      e.name.toLowerCase().includes(exerciseSearch.toLowerCase()) ||
+      (e.target_muscle && e.target_muscle.toLowerCase().includes(exerciseSearch.toLowerCase()));
+    return matchesM && matchesS;
+  });
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-[#131315] text-[#e5e1e4] pb-32">
-      {/* Top Header */}
+      {/* Top Fixed Header */}
       <header className="fixed top-0 w-full z-50 pt-safe bg-[#131315]/85 backdrop-blur-xl border-b border-[#201f22] shadow-[0_1px_8px_rgba(0,0,0,0.5)]">
         <div className="h-16 px-4 max-w-lg md:max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -145,266 +364,277 @@ export const ActiveWorkoutScreen: React.FC<ActiveWorkoutScreenProps> = ({
             >
               <span className="material-symbols-outlined text-[20px]">arrow_back_ios_new</span>
             </button>
-            <img
-              alt="Kinetic Obsidian Logo"
-              className="h-7 w-auto object-contain"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9mAGSXM6XxcStCr8x2sOQ9sOGwOvw4TT1OX6Oh-wCWBeK9AER2vpHh-pIWRez-enIb3WHF0KR_X8oOHc2GTzKNh6qYYAnOrLAlaTSXiRUOG9qOOk7M_mvWMBD0GaMfkRQoBpHM73foungg5SDFcS97JMjLzZxihTXwNUX31Ka1v1xBQ9giQTR3f-YbkevrFvWC4eQSly7YJFeIZPBJAK_MLwg6b24FjFmgWN--FENq97tOQK6rN-B"
-            />
-            <h1 className="font-['Space_Grotesk'] text-lg font-bold tracking-tight uppercase text-[#e5e1e4] truncate">
-              Active Workout
-            </h1>
+            <div className="flex flex-col">
+              <span className="font-['Space_Grotesk'] text-[10px] text-[#f97316] uppercase font-bold tracking-wider">
+                Live Session
+              </span>
+              <h1 className="font-['Space_Grotesk'] text-base sm:text-lg font-bold tracking-tight uppercase text-[#e5e1e4] truncate">
+                {session.name}
+              </h1>
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
-            <img
-              alt="Profile"
-              className="w-8 h-8 rounded-full object-cover border border-[#353437]"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbd0KDP_KEJI9bh4vtwgom7cUjQt6jNzoLGjkv6UPkH6d2nEv8VdLrkXCWLFpf2T39DdctzEVMmQr18UrsJVTSc0csI3MY7_9jV_8W2iO1uCapEXe6Zgrl8bkvEJPvVZBOwYo3IM2AP2sC-ylfc8sEvPeWOViiumgHMkJIdLDx9VByMLAledy8c2LvrShjPQh1HbEOjw5d87Pf9sEGGs_rTKyZ9G-BfHDDwm01QPFidQLJJDXzOBgw"
-            />
+            {/* Finish Workout Trigger */}
+            <button
+              onClick={handleCompleteSession}
+              className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#f97316] to-[#94de2d] font-['Space_Grotesk'] text-xs font-bold uppercase tracking-wider text-[#0e0e10] shadow-[0_0_12px_rgba(249,115,22,0.4)] active:scale-95 transition-all cursor-pointer"
+            >
+              Finish
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content Body */}
-      <main className="flex flex-col relative w-full pt-16 px-4 max-w-lg md:max-w-2xl mx-auto space-y-4">
-        {/* Floating Sticky Performance HUD */}
-        <section className="sticky top-16 z-40 -mx-4 px-4 py-2.5 bg-[#131315]/95 backdrop-blur-xl border-b border-[#201f22] shadow-xl flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-3">
-            {/* Session Live Metrics */}
-            <div className="flex items-center gap-2.5">
-              {/* Elapsed Timer with Pulsing Orange Dot */}
-              <div className="flex items-center gap-1.5 bg-[#2a2a2c] px-3 py-1 rounded-full shadow-inner border border-[#353437]">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#f97316] opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#f97316]" />
-                </span>
-                <span className="font-['Space_Grotesk'] text-xs font-semibold tracking-wider text-[#e5e1e4] tabular-nums">
-                  00:{formatTime(elapsedSeconds)}
-                </span>
-              </div>
-
-              {/* Dynamic Heart Rate Zone */}
-              <div className="flex items-center gap-1 bg-[#2a2a2c] px-3 py-1 rounded-full shadow-inner border border-[#353437]">
-                <span
-                  className="material-symbols-outlined text-[#f97316] text-[16px] animate-pulse"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  favorite
-                </span>
-                <span className="font-['Space_Grotesk'] text-xs text-[#ffb690] font-bold tabular-nums">
-                  {heartRate}
-                </span>
-                <span className="font-['Space_Grotesk'] text-[10px] text-[#a78b7d] uppercase">
-                  bpm
-                </span>
-              </div>
-
-              {/* Accumulated Volume */}
-              <div className="hidden sm:flex items-center gap-1 bg-[#2a2a2c] px-3 py-1 rounded-full border border-[#353437]">
-                <span className="material-symbols-outlined text-[#94de2d] text-[16px]">
-                  fitness_center
-                </span>
-                <span className="font-['Space_Grotesk'] text-xs text-[#94de2d] font-bold tabular-nums">
-                  8,420
-                </span>
-                <span className="font-['Space_Grotesk'] text-[10px] text-[#a78b7d] uppercase">
-                  kg
-                </span>
-              </div>
+      {/* Main Active Workout View */}
+      <main className="flex-1 w-full px-4 max-w-lg md:max-w-2xl mx-auto space-y-4 pt-20">
+        {/* Dynamic Telemetry HUD */}
+        <section className="bg-[#1c1b1d] rounded-2xl p-3 sm:p-4 border border-[#2a2a2c] flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#201f22] border border-[#353437] flex items-center justify-center text-[#f97316]">
+              <span className="material-symbols-outlined text-[20px]">timer</span>
             </div>
+            <div>
+              <span className="text-[10px] font-['Space_Grotesk'] text-[#a78b7d] uppercase tracking-wider block">
+                Elapsed
+              </span>
+              <span className="text-base sm:text-lg font-['Space_Grotesk'] font-bold text-[#e5e1e4] tabular-nums">
+                {formatTime(elapsedSeconds)}
+              </span>
+            </div>
+          </div>
 
-            {/* Finish Workout CTA */}
-            <button
-              onClick={onFinish}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-[#f97316] to-[#7ac100] text-[#341100] px-4 py-1.5 rounded-full font-['Space_Grotesk'] text-xs font-bold uppercase tracking-wider shadow-[0_0_16px_rgba(249,115,22,0.35)] active:scale-95 transition-transform cursor-pointer"
-            >
-              <span>Finish</span>
-              <span className="material-symbols-outlined text-[16px]">check_circle</span>
-            </button>
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#201f22] border border-[#353437] flex items-center justify-center text-rose-500">
+              <span className="material-symbols-outlined text-[20px]">favorite</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-['Space_Grotesk'] text-[#a78b7d] uppercase tracking-wider block">
+                Heart Rate
+              </span>
+              <span className="text-base sm:text-lg font-['Space_Grotesk'] font-bold text-[#e5e1e4] tabular-nums flex items-center gap-1">
+                {heartRate} <span className="text-[10px] text-[#a78b7d]">BPM</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#201f22] border border-[#353437] flex items-center justify-center text-[#94de2d]">
+              <span className="material-symbols-outlined text-[20px]">emoji_events</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-['Space_Grotesk'] text-[#a78b7d] uppercase tracking-wider block">
+                PRs Hit
+              </span>
+              <span className="text-base sm:text-lg font-['Space_Grotesk'] font-bold text-[#94de2d] tabular-nums">
+                {prCount}
+              </span>
+            </div>
           </div>
         </section>
 
-        {/* PR Celebration Notification Banner */}
+        {/* Dynamic PR Celebration Banner */}
         {showPrBanner && (
-          <aside className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#2a2a2c] via-[#201f22] to-[#2a2a2c] p-3 shadow-[0_0_24px_rgba(249,115,22,0.2)] border border-[#f97316]/30">
-            <div className="absolute -right-6 -top-6 w-24 h-24 bg-[#f97316]/15 rounded-full blur-xl pointer-events-none" />
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#f97316]/20 border border-[#f97316]/30 flex items-center justify-center text-[#f97316] shadow-inner shrink-0">
-                  <span className="material-symbols-outlined text-[20px]">emoji_events</span>
-                </div>
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-['Space_Grotesk'] text-xs uppercase tracking-wider text-[#ffb690] font-bold">
-                      New PR Recorded!
-                    </span>
-                    <span className="bg-[#94de2d]/20 text-[#94de2d] font-['Space_Grotesk'] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                      +2.5 kg
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#e0c0b1]/80 truncate">
-                    Barbell Incline Bench Press • e1RM{' '}
-                    <span className="font-bold text-[#e5e1e4]">102.5 kg</span>
-                  </p>
-                </div>
+          <aside className="relative flex items-center justify-between gap-3 bg-gradient-to-r from-[#321703] via-[#241305] to-[#1c1b1d] border border-[#f97316]/60 rounded-2xl p-4 shadow-[0_0_24px_rgba(249,115,22,0.3)] animate-bounce-short">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#f97316]/20 border border-[#f97316] flex items-center justify-center text-[#f97316] shrink-0">
+                <span className="material-symbols-outlined text-[22px]">celebration</span>
               </div>
-              <button
-                onClick={() => setShowPrBanner(false)}
-                className="w-7 h-7 rounded-full bg-[#353437] flex items-center justify-center text-[#a78b7d] hover:text-[#e5e1e4] cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
+              <div>
+                <span className="font-['Space_Grotesk'] text-[10px] font-bold uppercase tracking-wider text-[#f97316]">
+                  Personal Record Verified
+                </span>
+                <p className="font-['Space_Grotesk'] text-xs font-semibold text-[#e5e1e4] mt-0.5">
+                  {prBannerText}
+                </p>
+              </div>
             </div>
+            <button
+              onClick={() => setShowPrBanner(false)}
+              className="w-7 h-7 rounded-full bg-[#353437] flex items-center justify-center text-[#a78b7d] hover:text-[#e5e1e4] cursor-pointer shrink-0"
+            >
+              <span className="material-symbols-outlined text-[16px]">close</span>
+            </button>
           </aside>
         )}
 
-        {/* Exercise 1 Active Working Module: Barbell Incline Bench Press */}
-        {exercises[0] && (
-          <article className="relative flex flex-col bg-[#1c1b1d] rounded-2xl p-4 sm:p-5 shadow-xl border border-[#2a2a2c] space-y-3">
-            {/* Exercise Header row */}
+        {/* Exercise Switcher Carousel Tabs */}
+        <section className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4">
+          {exercises.map((ex, idx) => (
+            <button
+              key={ex.id}
+              onClick={() => setActiveExerciseIndex(idx)}
+              className={`py-2 px-3.5 rounded-xl font-['Space_Grotesk'] text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                idx === activeExerciseIndex
+                  ? 'bg-[#f97316]/20 text-[#f97316] border border-[#f97316]/60 font-bold shadow-[0_0_12px_rgba(249,115,22,0.2)]'
+                  : 'bg-[#1c1b1d] text-[#a78b7d] hover:text-[#e5e1e4] border border-[#2a2a2c]'
+              }`}
+            >
+              <span>{idx + 1}.</span>
+              <span className="truncate max-w-[130px]">{ex.name}</span>
+              {ex.sets.some((s) => s.isDone) && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[#94de2d]" />
+              )}
+            </button>
+          ))}
+
+          {/* Add Exercise to Routine Button */}
+          <button
+            onClick={() => setIsExercisePickerOpen(true)}
+            className="py-2 px-3 rounded-xl bg-[#201f22] hover:bg-[#2a2a2c] text-[#94de2d] border border-[#94de2d]/40 font-['Space_Grotesk'] text-xs font-bold whitespace-nowrap flex items-center gap-1 transition-all cursor-pointer shrink-0"
+          >
+            <span className="material-symbols-outlined text-[16px]">add</span>
+            <span>Add Exercise</span>
+          </button>
+        </section>
+
+        {/* Active Exercise Detail Card */}
+        {currentExercise && (
+          <article className="flex flex-col bg-[#1c1b1d] rounded-2xl p-4 sm:p-5 shadow-xl border border-[#2a2a2c] space-y-4">
+            {/* Exercise Header */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
                   <span className="bg-[#f97316]/10 text-[#f97316] border border-[#f97316]/20 font-['Space_Grotesk'] text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">
-                    {exercises[0].muscleGroup}
+                    {currentExercise.muscleGroup}
                   </span>
                   <span className="font-['Space_Grotesk'] text-[10px] text-[#a78b7d]">
-                    {exercises[0].sets.length} Sets Planned
+                    {currentExercise.sets.filter((s) => s.isDone).length} of{' '}
+                    {currentExercise.sets.length} Sets Logged
                   </span>
                 </div>
                 <h2 className="font-['Space_Grotesk'] text-lg sm:text-xl font-bold text-[#e5e1e4] mt-1">
-                  {exercises[0].name}
+                  {currentExercise.name}
                 </h2>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  className="w-8 h-8 rounded-lg bg-[#201f22] flex items-center justify-center text-[#e0c0b1] hover:text-[#e5e1e4] border border-[#353437] cursor-pointer"
-                  title="Exercise History"
-                >
-                  <span className="material-symbols-outlined text-[18px]">query_stats</span>
-                </button>
-                <button
-                  className="w-8 h-8 rounded-lg bg-[#201f22] flex items-center justify-center text-[#e0c0b1] hover:text-[#e5e1e4] border border-[#353437] cursor-pointer"
-                  title="More Actions"
-                >
-                  <span className="material-symbols-outlined text-[18px]">more_vert</span>
-                </button>
               </div>
             </div>
 
-            {/* Set Logging Table */}
-            <div className="w-full flex flex-col space-y-1.5">
-              {/* Headers */}
-              <div className="grid grid-cols-12 gap-1 px-2 py-1 text-[#a78b7d] font-['Space_Grotesk'] text-[10px] tracking-wider uppercase items-center text-center">
+            {/* Set Table */}
+            <div className="w-full flex flex-col space-y-2">
+              {/* Column Headers */}
+              <div className="grid grid-cols-12 gap-1.5 px-2 py-1 text-[#a78b7d] font-['Space_Grotesk'] text-[10px] tracking-wider uppercase items-center text-center">
                 <span className="col-span-2 text-left">Set</span>
                 <span className="col-span-2">Prev</span>
-                <span className="col-span-3">Kg</span>
+                <span className="col-span-3">Weight (Kg)</span>
                 <span className="col-span-2">Reps</span>
                 <span className="col-span-1">RIR</span>
-                <span className="col-span-2 text-right">Done</span>
+                <span className="col-span-2 text-right">Log</span>
               </div>
 
               {/* Set Rows */}
-              {exercises[0].sets.map((set, idx) => {
-                const isSet3Active = idx === 2;
+              {currentExercise.sets.map((setItem) => {
+                const isCompleted = setItem.isDone;
+                const isSaving = savingSetId === setItem.id;
 
-                if (isSet3Active && !set.isDone) {
-                  // Active Set 3 with high-voltage glowing input box
-                  return (
-                    <div
-                      key={set.id}
-                      className="relative grid grid-cols-12 gap-1 px-2 py-2 rounded-xl bg-[#2a2a2c] border border-[#f97316] shadow-[0_0_20px_rgba(249,115,22,0.25)] items-center text-center"
-                    >
-                      <div className="col-span-2 flex items-center gap-1 text-left">
-                        <span className="w-5 h-5 rounded-full bg-[#f97316] text-[#552100] font-['Space_Grotesk'] text-[10px] flex items-center justify-center font-bold">
-                          {set.setNumber}
-                        </span>
-                      </div>
-                      <span className="col-span-2 text-xs text-[#a78b7d] tabular-nums font-mono">
-                        {set.prev}
-                      </span>
-                      {/* Editable Weight with Active Glow Box */}
-                      <div className="col-span-3 bg-[#0e0e10] py-1 px-1 rounded-lg border border-[#f97316]/50 shadow-inner flex items-center justify-center">
-                        <input
-                          className="w-full bg-transparent text-center font-['Space_Grotesk'] text-sm font-bold text-[#ffb690] focus:outline-none tabular-nums"
-                          type="text"
-                          value={activeSetKg}
-                          onChange={(e) => setActiveSetKg(e.target.value)}
-                        />
-                      </div>
-                      {/* Editable Reps */}
-                      <div className="col-span-2 bg-[#0e0e10] py-1 px-1 rounded-lg border border-[#f97316]/50 shadow-inner flex items-center justify-center">
-                        <input
-                          className="w-full bg-transparent text-center font-['Space_Grotesk'] text-sm font-bold text-[#ffb690] focus:outline-none tabular-nums"
-                          type="text"
-                          value={activeSetReps}
-                          onChange={(e) => setActiveSetReps(e.target.value)}
-                        />
-                      </div>
-                      {/* Editable RIR */}
-                      <div className="col-span-1 bg-[#0e0e10] py-1 px-0.5 rounded-lg border border-[#f97316]/50 shadow-inner flex items-center justify-center">
-                        <input
-                          className="w-full bg-transparent text-center font-['Space_Grotesk'] text-xs font-bold text-[#e5e1e4] focus:outline-none tabular-nums"
-                          type="text"
-                          value={activeSetRir}
-                          onChange={(e) => setActiveSetRir(e.target.value)}
-                        />
-                      </div>
-                      {/* Check Button */}
-                      <div className="col-span-2 flex justify-end">
-                        <button
-                          onClick={() => handleToggleSet(exercises[0].id, set.id)}
-                          className="w-8 h-8 rounded-lg bg-[#f97316] text-[#552100] flex items-center justify-center shadow-[0_0_12px_rgba(249,115,22,0.6)] active:scale-90 transition-transform cursor-pointer"
-                          title="Complete Set"
-                        >
-                          <span className="material-symbols-outlined text-[18px] font-bold">
-                            done
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Standard Completed / Pending row
-                const isCompleted = set.isDone;
                 return (
                   <div
-                    key={set.id}
-                    className={`grid grid-cols-12 gap-1 px-2 py-1.5 rounded-xl items-center text-center transition-all ${
+                    key={setItem.id}
+                    className={`grid grid-cols-12 gap-1.5 px-2.5 py-2 rounded-xl items-center text-center transition-all ${
                       isCompleted
-                        ? 'bg-[#201f22]/70 border border-[#353437]'
-                        : 'bg-[#201f22]/30 border border-[#201f22] opacity-60'
+                        ? 'bg-[#201f22]/90 border border-[#94de2d]/30 shadow-[0_0_8px_rgba(148,222,45,0.1)]'
+                        : 'bg-[#201f22]/40 border border-[#2a2a2c] hover:border-[#353437]'
                     }`}
                   >
-                    <div className="col-span-2 flex items-center gap-1 text-left">
-                      <span className="w-5 h-5 rounded-full bg-[#353437] text-[#e5e1e4] font-['Space_Grotesk'] text-[10px] flex items-center justify-center font-bold">
-                        {set.setNumber}
-                      </span>
-                    </div>
-                    <span className="col-span-2 text-xs text-[#a78b7d] tabular-nums font-mono">
-                      {set.prev}
-                    </span>
-                    <div className="col-span-3 bg-[#0e0e10] py-1 px-1.5 rounded text-[#e5e1e4] font-['Space_Grotesk'] text-xs font-semibold tabular-nums">
-                      {set.weightKg.toFixed(1)}
-                    </div>
-                    <div className="col-span-2 bg-[#0e0e10] py-1 px-1.5 rounded text-[#e5e1e4] font-['Space_Grotesk'] text-xs font-semibold tabular-nums">
-                      {set.reps}
-                    </div>
-                    <span className="col-span-1 text-xs text-[#e0c0b1] font-medium">
-                      {set.rir}
-                    </span>
-                    <div className="col-span-2 flex justify-end">
-                      <button
-                        onClick={() => handleToggleSet(exercises[0].id, set.id)}
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                    {/* Set Number & PR Badge */}
+                    <div className="col-span-2 flex items-center gap-1.5 text-left">
+                      <span
+                        className={`w-5 h-5 rounded-full font-['Space_Grotesk'] text-[10px] flex items-center justify-center font-bold ${
                           isCompleted
-                            ? 'bg-[#7ac100] text-[#102000] shadow-[0_0_12px_rgba(148,222,45,0.4)]'
-                            : 'bg-[#353437] text-[#a78b7d] hover:text-[#e5e1e4]'
+                            ? 'bg-[#94de2d] text-[#131315]'
+                            : 'bg-[#353437] text-[#e5e1e4]'
                         }`}
                       >
-                        <span className="material-symbols-outlined text-[18px] font-bold">
-                          check
+                        {setItem.setNumber}
+                      </span>
+                      {setItem.isPr && (
+                        <span
+                          className="material-symbols-outlined text-[#f97316] text-[14px]"
+                          title="Personal Record Set"
+                        >
+                          star
                         </span>
+                      )}
+                    </div>
+
+                    {/* Previous Set Performance */}
+                    <span className="col-span-2 text-xs text-[#a78b7d] tabular-nums font-mono">
+                      {setItem.prev || '—'}
+                    </span>
+
+                    {/* Editable Weight Input */}
+                    <div className="col-span-3 bg-[#0e0e10] py-1 px-1.5 rounded-lg border border-[#2a2a2c] focus-within:border-[#f97316] flex items-center justify-center">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={setItem.weightKg}
+                        onChange={(e) =>
+                          handleUpdateSetValue(
+                            currentExercise.id,
+                            setItem.id,
+                            'weightKg',
+                            parseFloat(e.target.value) || 0
+                          )
+                        }
+                        className="w-full bg-transparent text-center font-['Space_Grotesk'] text-xs sm:text-sm font-bold text-[#e5e1e4] focus:outline-none tabular-nums"
+                      />
+                    </div>
+
+                    {/* Editable Reps Input */}
+                    <div className="col-span-2 bg-[#0e0e10] py-1 px-1 rounded-lg border border-[#2a2a2c] focus-within:border-[#f97316] flex items-center justify-center">
+                      <input
+                        type="number"
+                        min="1"
+                        value={setItem.reps}
+                        onChange={(e) =>
+                          handleUpdateSetValue(
+                            currentExercise.id,
+                            setItem.id,
+                            'reps',
+                            parseInt(e.target.value) || 0
+                          )
+                        }
+                        className="w-full bg-transparent text-center font-['Space_Grotesk'] text-xs sm:text-sm font-bold text-[#e5e1e4] focus:outline-none tabular-nums"
+                      />
+                    </div>
+
+                    {/* Editable RIR */}
+                    <div className="col-span-1 bg-[#0e0e10] py-1 px-0.5 rounded-lg border border-[#2a2a2c] focus-within:border-[#f97316] flex items-center justify-center">
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={setItem.rir}
+                        onChange={(e) =>
+                          handleUpdateSetValue(
+                            currentExercise.id,
+                            setItem.id,
+                            'rir',
+                            parseInt(e.target.value) || 0
+                          )
+                        }
+                        className="w-full bg-transparent text-center font-['Space_Grotesk'] text-xs font-bold text-[#ffb690] focus:outline-none tabular-nums"
+                      />
+                    </div>
+
+                    {/* Check / Complete Button */}
+                    <div className="col-span-2 flex justify-end">
+                      <button
+                        onClick={() => handleToggleSet(currentExercise.id, setItem)}
+                        disabled={isSaving}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                          isCompleted
+                            ? 'bg-[#94de2d] text-[#131315] shadow-[0_0_12px_rgba(148,222,45,0.4)]'
+                            : 'bg-[#353437] text-[#a78b7d] hover:text-[#e5e1e4] hover:bg-[#444]'
+                        }`}
+                      >
+                        {isSaving ? (
+                          <span className="w-3.5 h-3.5 border-2 border-[#131315] border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <span className="material-symbols-outlined text-[18px] font-bold">
+                            check
+                          </span>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -412,158 +642,180 @@ export const ActiveWorkoutScreen: React.FC<ActiveWorkoutScreenProps> = ({
               })}
             </div>
 
-            {/* Action Row: Add Set / Replace Exercise */}
+            {/* Set Table Action Row */}
             <div className="flex items-center justify-between pt-1">
               <button
-                onClick={() => handleAddSet(exercises[0].id)}
-                className="flex items-center gap-1 bg-[#201f22] hover:bg-[#2a2a2c] px-3 py-1.5 rounded-lg text-[#ffb690] border border-[#353437] font-['Space_Grotesk'] text-xs font-semibold active:scale-95 transition-all cursor-pointer"
+                onClick={() => handleAddSet(currentExercise.id)}
+                className="flex items-center gap-1 bg-[#201f22] hover:bg-[#2a2a2c] px-3.5 py-2 rounded-xl text-[#ffb690] border border-[#353437] font-['Space_Grotesk'] text-xs font-semibold active:scale-95 transition-all cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[16px]">add</span>
                 <span>Add Set</span>
               </button>
-              <button className="text-[#a78b7d] hover:text-[#e5e1e4] text-xs flex items-center gap-1 py-1 cursor-pointer">
-                <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
-                <span>Replace Exercise</span>
+
+              <button
+                onClick={() => setIsExercisePickerOpen(true)}
+                className="text-[#a78b7d] hover:text-[#e5e1e4] text-xs flex items-center gap-1 py-1 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">library_add</span>
+                <span>Select Another Exercise</span>
               </button>
             </div>
-          </article>
-        )}
-
-        {/* Exercise 2 Queue Preview Card (Next Up: Dumbbell Incline Flyes) */}
-        {exercises[1] && (
-          <article className="flex flex-col bg-[#1c1b1d] rounded-2xl p-4 shadow-md border border-[#2a2a2c] space-y-2.5">
-            <div
-              onClick={() => setIsNextUpExpanded(!isNextUpExpanded)}
-              className="flex items-center justify-between cursor-pointer"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#201f22] border border-[#353437] flex items-center justify-center text-[#a78b7d]">
-                  <span className="material-symbols-outlined text-[20px]">fitness_center</span>
-                </div>
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5">
-                    <span className="bg-[#353437] text-[#a78b7d] font-['Space_Grotesk'] text-[10px] px-1.5 py-0.5 rounded uppercase font-bold">
-                      Next Up
-                    </span>
-                    <span className="font-['Space_Grotesk'] text-[10px] text-[#a78b7d]">
-                      {exercises[1].setsPlanned} Sets Planned
-                    </span>
-                  </div>
-                  <h3 className="font-['Space_Grotesk'] text-sm sm:text-base text-[#e5e1e4] font-semibold">
-                    {exercises[1].name}
-                  </h3>
-                </div>
-              </div>
-              <button className="w-8 h-8 rounded-full bg-[#201f22] flex items-center justify-center text-[#a78b7d] hover:text-[#e5e1e4] cursor-pointer">
-                <span className="material-symbols-outlined text-[20px]">
-                  {isNextUpExpanded ? 'expand_less' : 'expand_more'}
-                </span>
-              </button>
-            </div>
-
-            {/* Exercise Warm-up & Target Form Note */}
-            <div className="flex items-center gap-2 bg-[#201f22]/90 border border-[#353437] px-3 py-2 rounded-xl text-[#e0c0b1]">
-              <span className="material-symbols-outlined text-[#f97316] text-[18px] shrink-0">
-                info
-              </span>
-              <p className="text-xs">
-                Warm-up: 1x12 with 12kg dumbbells. Focus on deep stretch in bottom position.
-              </p>
-            </div>
-
-            {isNextUpExpanded && (
-              <div className="pt-2 space-y-1.5">
-                {exercises[1].sets.map((set) => (
-                  <div
-                    key={set.id}
-                    className="grid grid-cols-12 gap-1 px-2 py-1.5 rounded-lg bg-[#201f22]/40 items-center text-center text-xs"
-                  >
-                    <span className="col-span-2 text-left font-bold text-[#e5e1e4]">
-                      Set {set.setNumber}
-                    </span>
-                    <span className="col-span-3 text-[#a78b7d]">{set.prev}</span>
-                    <span className="col-span-3 font-semibold text-[#e5e1e4]">
-                      {set.weightKg} kg
-                    </span>
-                    <span className="col-span-2">{set.reps} reps</span>
-                    <div className="col-span-2 flex justify-end">
-                      <button
-                        onClick={() => handleToggleSet(exercises[1].id, set.id)}
-                        className={`w-7 h-7 rounded flex items-center justify-center cursor-pointer ${
-                          set.isDone
-                            ? 'bg-[#7ac100] text-[#102000]'
-                            : 'bg-[#353437] text-[#a78b7d]'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[16px]">check</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </article>
         )}
       </main>
 
-      {/* Sticky Anchored Rest Timer Floating Pill HUD */}
-      <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
-        <div className="pointer-events-auto flex items-center justify-between w-full max-w-md bg-[#2a2a2c]/95 backdrop-blur-2xl rounded-full p-1.5 border border-[#353437] shadow-[0_8px_32px_rgba(0,0,0,0.8)]">
-          {/* Radial Countdown Circle & Text */}
-          <div className="flex items-center gap-3 pl-2">
-            <div className="relative w-8 h-8 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <circle
-                  className="stroke-[#353437]"
-                  cx="18"
-                  cy="18"
-                  fill="none"
-                  r={radius}
-                  strokeWidth="3"
-                />
-                <circle
-                  className="stroke-[#94de2d] transition-all duration-300"
-                  cx="18"
-                  cy="18"
-                  fill="none"
-                  r={radius}
-                  strokeDasharray={circumference}
-                  strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
-                  strokeWidth="3"
-                />
-              </svg>
-              <span className="material-symbols-outlined absolute text-[#94de2d] text-[14px] font-bold">
-                timer
-              </span>
+      {/* Floating Rest Timer HUD */}
+      {restSeconds > 0 && (
+        <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
+          <div className="pointer-events-auto flex items-center justify-between w-full max-w-md bg-[#2a2a2c]/95 backdrop-blur-2xl rounded-full p-2 border border-[#353437] shadow-[0_8px_32px_rgba(0,0,0,0.8)]">
+            <div className="flex items-center gap-3 pl-2">
+              <div className="relative w-8 h-8 flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                  <circle
+                    className="stroke-[#353437]"
+                    cx="18"
+                    cy="18"
+                    fill="none"
+                    r={radius}
+                    strokeWidth="3"
+                  />
+                  <circle
+                    className="stroke-[#94de2d] transition-all duration-300"
+                    cx="18"
+                    cy="18"
+                    fill="none"
+                    r={radius}
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    strokeWidth="3"
+                  />
+                </svg>
+                <span className="material-symbols-outlined absolute text-[#94de2d] text-[14px] font-bold">
+                  timer
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="font-['Space_Grotesk'] text-[9px] text-[#a78b7d] uppercase tracking-wider">
+                  Rest Countdown
+                </span>
+                <span className="font-['Space_Grotesk'] text-base text-[#94de2d] leading-none tabular-nums font-bold">
+                  {formatTime(restSeconds)}
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="font-['Space_Grotesk'] text-[9px] text-[#a78b7d] uppercase tracking-wider">
-                Rest Timer
-              </span>
-              <span className="font-['Space_Grotesk'] text-base text-[#94de2d] leading-none tabular-nums font-bold">
-                {formatTime(restSeconds)}
-              </span>
-            </div>
-          </div>
 
-          {/* Rest Incrementers & Skip Buttons */}
-          <div className="flex items-center gap-1.5 pr-1">
-            <button
-              onClick={() => handleAddRestTime(30)}
-              className="bg-[#353437] active:bg-[#39393b] text-[#e5e1e4] px-3 py-1.5 rounded-full font-['Space_Grotesk'] text-xs font-semibold tracking-wider cursor-pointer"
-            >
-              +30s
-            </button>
-            <button
-              onClick={handleSkipRest}
-              className="bg-[#201f22] active:bg-[#39393b] text-[#a78b7d] hover:text-[#e5e1e4] px-3 py-1.5 rounded-full font-['Space_Grotesk'] text-xs font-semibold tracking-wider cursor-pointer"
-            >
-              Skip
-            </button>
+            <div className="flex items-center gap-1.5 pr-1">
+              <button
+                onClick={() => handleAddRestTime(30)}
+                className="bg-[#353437] active:bg-[#444] text-[#e5e1e4] px-3 py-1.5 rounded-full font-['Space_Grotesk'] text-xs font-semibold cursor-pointer"
+              >
+                +30s
+              </button>
+              <button
+                onClick={handleSkipRest}
+                className="bg-[#201f22] active:bg-[#333] text-[#a78b7d] hover:text-[#e5e1e4] px-3 py-1.5 rounded-full font-['Space_Grotesk'] text-xs font-semibold cursor-pointer"
+              >
+                Skip
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Supabase Exercise Library Picker Modal */}
+      {isExercisePickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+          <div className="bg-[#1c1b1d] border border-[#2a2a2c] rounded-3xl p-5 max-w-lg w-full max-h-[85vh] flex flex-col space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-['Space_Grotesk'] text-[10px] text-[#f97316] uppercase font-bold tracking-wider">
+                  Supabase Exercise Library
+                </span>
+                <h3 className="font-['Space_Grotesk'] text-lg font-bold text-[#e5e1e4]">
+                  Add Exercise to Workout
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsExercisePickerOpen(false)}
+                className="w-8 h-8 rounded-full bg-[#201f22] flex items-center justify-center text-[#a78b7d] hover:text-[#e5e1e4] cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Search and Muscle Filter */}
+            <div className="space-y-2">
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-3 top-2.5 text-[#a78b7d] text-[18px]">
+                  search
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search exercise or target muscle..."
+                  value={exerciseSearch}
+                  onChange={(e) => setExerciseSearch(e.target.value)}
+                  className="w-full bg-[#0e0e10] border border-[#2a2a2c] focus:border-[#f97316] rounded-xl pl-9 pr-3.5 py-2 text-xs text-[#e5e1e4] placeholder-[#555] outline-none"
+                />
+              </div>
+
+              {/* Muscle Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+                {['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core'].map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setSelectedMuscle(m)}
+                    className={`px-2.5 py-1 rounded-lg font-['Space_Grotesk'] text-[11px] whitespace-nowrap transition-colors cursor-pointer ${
+                      selectedMuscle === m
+                        ? 'bg-[#f97316] text-[#131315] font-bold'
+                        : 'bg-[#201f22] text-[#a78b7d] hover:text-[#e5e1e4]'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Exercise List */}
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[50vh]">
+              {filteredDbExercises.length === 0 ? (
+                <div className="text-center py-8 text-xs text-[#a78b7d]">
+                  No matching exercises found in library.
+                </div>
+              ) : (
+                filteredDbExercises.map((dbEx) => (
+                  <button
+                    key={dbEx.id}
+                    onClick={() => handleSelectDbExercise(dbEx)}
+                    className="w-full p-3 rounded-xl bg-[#201f22]/70 hover:bg-[#2a2a2c] border border-[#2a2a2c] hover:border-[#f97316]/50 flex items-center justify-between text-left transition-colors cursor-pointer group"
+                  >
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-['Space_Grotesk'] text-[9px] uppercase font-bold text-[#f97316]">
+                          {dbEx.muscle_group}
+                        </span>
+                        <span className="text-[10px] text-[#a78b7d]">• {dbEx.equipment}</span>
+                      </div>
+                      <span className="font-['Space_Grotesk'] text-xs sm:text-sm font-semibold text-[#e5e1e4] group-hover:text-[#ffb690]">
+                        {dbEx.name}
+                      </span>
+                      {dbEx.target_muscle && (
+                        <span className="text-[10px] text-[#a78b7d]">
+                          Target: {dbEx.target_muscle}
+                        </span>
+                      )}
+                    </div>
+                    <span className="material-symbols-outlined text-[#a78b7d] group-hover:text-[#94de2d] text-[20px]">
+                      add_circle
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
